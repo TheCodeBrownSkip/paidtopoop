@@ -148,38 +148,136 @@ export default function DashboardPage() {
 
   const handleStopTimerAndPrepareLog = () => { setTiming(false); setShowLogLocationModal(true); setLogLocationMethod('auto'); setLogCity(''); };
 
+// In src/pages/index.js (DashboardPage.js)
+
   const handleSubmitLog = async () => { 
-    if (rate === null || elapsed <= 0) { alert("Log error: Rate not set or timer not run."); setShowLogLocationModal(false); return; }
-    if (!identity.username || !identity.token) { alert("Log error: User not identified."); setShowLogLocationModal(false); return;}
-    setIsSubmittingLog(true); setLoadingState(prev => ({ ...prev, geocoding: logLocationMethod === 'auto' }));
+    if (rate === null || elapsed <= 0) { 
+        alert("Log error: Rate not set or timer not run."); 
+        setShowLogLocationModal(false); 
+        return; 
+    }
+    if (!identity.username || !identity.token) { 
+        alert("Log error: User not identified."); 
+        setShowLogLocationModal(false); 
+        return;
+    }
+
+    setIsSubmittingLog(true); // Set submitting true at the very beginning
+    if (logLocationMethod === 'auto') {
+        setLoadingState(prev => ({ ...prev, geocoding: true }));
+    }
+
     const calculatedEarnings = ((rate * elapsed) / 3600).toFixed(2);
-    let logDataPayload = { username: identity.username, token: identity.token, duration: elapsed, earnings: Number(calculatedEarnings), currentRate: rate, timestamp: Date.now(), lat: null, lng: null, city: null, locationMethod: '' };
+    let logDataPayload = { 
+      username: identity.username, 
+      token: identity.token, 
+      duration: elapsed, 
+      earnings: Number(calculatedEarnings), 
+      currentRate: rate, 
+      timestamp: Date.now(), 
+      lat: null, 
+      lng: null, 
+      city: null, 
+      locationMethod: '' 
+    };
     let locationDetermined = false;
+
     if (logLocationMethod === 'auto') { 
         if (navigator.geolocation) {
             try { 
-                const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout:10000, enableHighAccuracy: true}));
-                const obf = obfuscateLocation(pos.coords.latitude, pos.coords.longitude);
-                logDataPayload.lat = obf.lat; logDataPayload.lng = obf.lng; logDataPayload.locationMethod = 'auto_obfuscated';
-                try { const geoR = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`, {headers: {'User-Agent':`${identity.username||'PooAppUser'}-PaidToPooApp/1.0`}}); if (geoR.ok) { const gD=await geoR.json(); logDataPayload.city=gD.address?.city||gD.address?.town||gD.address?.village||gD.address?.suburb||gD.address?.city_district||null;} } catch(e){}
+                const position = await new Promise((resolve, reject) => 
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {timeout:10000, enableHighAccuracy: true})
+                );
+                const obfuscated = obfuscateLocation(position.coords.latitude, position.coords.longitude);
+                logDataPayload.lat = obfuscated.lat; 
+                logDataPayload.lng = obfuscated.lng; 
+                logDataPayload.locationMethod = 'auto_obfuscated';
+                
+                let fetchedCity = null;
+                try { 
+                    const userAgent = `${identity.username || 'PooAppUser'}-PaidToPooApp/1.0`;
+                    const geoResp = await fetch(
+                        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${position.coords.latitude}&lon=${position.coords.longitude}`, 
+                        {headers: {'User-Agent': userAgent }}
+                    ); 
+                    if (geoResp.ok) { 
+                        const geoData = await geoResp.json(); 
+                        fetchedCity = geoData.address?.city || geoData.address?.town || geoData.address?.village || geoData.address?.suburb || geoData.address?.city_district || null;
+                    } else {
+                        console.warn("Client-side Nominatim failed:", geoResp.status);
+                    }
+                } catch(e){
+                    console.warn("Client-side Nominatim error:", e);
+                }
+                logDataPayload.city = fetchedCity;
                 locationDetermined = true;
-            } catch (geoE) { alert(`Geolocation failed: ${geoE.message}. Enter city manually.`); setLogLocationMethod('manual');}
-        } else { alert("Geolocation not supported. Enter city manually."); setLogLocationMethod('manual');}
+            } catch (geoError) { 
+                alert(`Geolocation failed: ${geoError.message}. Enter city manually.`); 
+                setLogLocationMethod('manual'); // Switch to manual
+                // DO NOT return yet, let user correct in modal or cancel
+                // Reset loading states here as we are stopping this attempt
+                setLoadingState(prev => ({ ...prev, geocoding: false }));
+                setIsSubmittingLog(false); // Allow user to try again or cancel
+                return; // Exit the function, modal stays open for user to adjust
+            }
+        } else { 
+            alert("Geolocation is not supported. Enter city manually."); 
+            setLogLocationMethod('manual'); // Switch to manual
+            setLoadingState(prev => ({ ...prev, geocoding: false }));
+            setIsSubmittingLog(false);
+            return; // Exit the function
+        }
     } else if (logLocationMethod === 'manual') { 
-        if (!logCity.trim()) { alert("Please enter a city name.");} else { logDataPayload.city = logCity.trim(); logDataPayload.locationMethod = 'manual'; locationDetermined = true;}
+        if (!logCity.trim()) { 
+            alert("Please enter a city name.");
+            setIsSubmittingLog(false); // Reset before returning
+            // setLoadingState geocoding is already false or will be set in finally
+            return; 
+        }
+        logDataPayload.city = logCity.trim(); 
+        logDataPayload.locationMethod = 'manual'; 
+        locationDetermined = true;
     }
+    
+    // Ensure geocoding loading state is false before API call,
+    // unless it was already handled in an error path above.
     setLoadingState(prev => ({ ...prev, geocoding: false }));
-    if (!locationDetermined) { setIsSubmittingLog(false); return; }
+
+    if (!locationDetermined) { 
+        alert("Location could not be determined. Please try again or enter manually.");
+        setIsSubmittingLog(false); // Reset before returning
+        return; 
+    }
+
     try { 
-        const resp = await fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataPayload) });
-        if (!resp.ok) { const eT = await resp.text(); throw new Error(`HTTP error! ${resp.status} - ${eT}`);}
+        // isSubmittingLog is already true
+        const resp = await fetch('/api/log', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(logDataPayload) 
+        });
+        if (!resp.ok) { 
+            const eT = await resp.text(); 
+            throw new Error(`HTTP error! ${resp.status} - ${eT}`);
+        }
         const newLogAPI = await resp.json();
+        
         await fetchAndProcessAllLogs(identity); 
-        setShowLogLocationModal(false); setElapsed(0); 
-        const navD = newLogAPI && newLogAPI.timestamp ? newLogAPI : logDataPayload;
-        router.push(`/mapfocus?lat=${navD.lat??''}&lng=${navD.lng??''}&city=${encodeURIComponent(navD.city||'')}&user=${encodeURIComponent(navD.username)}&dur=${navD.duration}&earn=${navD.earnings}&ts=${navD.timestamp}`);
-    } catch (err) { console.error("API log submission error:", err); alert(`Failed to submit: ${err.message}`); } 
-    finally { setIsSubmittingLog(false); }
+        setShowLogLocationModal(false); 
+        setElapsed(0); 
+        
+        const navData = newLogAPI && newLogAPI.timestamp ? newLogAPI : logDataPayload;
+        router.push(
+            `/mapfocus?lat=${navData.lat ?? ''}&lng=${navData.lng ?? ''}&city=${encodeURIComponent(navData.city || '')}&user=${encodeURIComponent(navData.username)}&dur=${navData.duration}&earn=${navData.earnings}&ts=${navData.timestamp}`
+        );
+    } catch (err) { 
+        console.error("API log submission error:", err); 
+        alert(`Failed to submit log: ${err.message}`); 
+        // isSubmittingLog will be reset in finally
+    } finally { 
+        setIsSubmittingLog(false); 
+        setLoadingState(prev => ({ ...prev, geocoding: false })); // Ensure geocoding is off
+    }
   };
 
   const handleLogItemClick = (log) => { router.push(`/mapfocus?lat=${log.lat??''}&lng=${log.lng??''}&city=${encodeURIComponent(log.city||'')}&user=${encodeURIComponent(log.username)}&dur=${log.duration}&earn=${log.earnings}&ts=${log.timestamp}`); };
