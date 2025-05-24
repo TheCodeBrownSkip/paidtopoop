@@ -1,63 +1,58 @@
 ﻿// src/pages/api/log.js
-import { db } from "@/firebase/clientApp";
-import { collection, addDoc, getDocs } from "firebase/firestore";
+import { db } from "@/firebase/clientApp"; // Ensure this path is correct
+import { collection, addDoc, getDocs, query, orderBy, Timestamp, serverTimestamp } from "firebase/firestore";
 
 export default async function handler(req, res) {
   // POST /api/log — add a new entry
   if (req.method === "POST") {
-    const e = req.body;
-    console.log("Entry payload:", e);
+    const entryData = req.body;
+    console.log("API received log payload:", entryData);
 
-    let city = null;
+    // Destructure and prepare data for Firestore
+    // The client should now be sending the city if auto-geocoded or manually entered
+    const {
+      username, token, duration, earnings, currentRate,
+      timestamp, lat, lng, city, // city now comes from client
+      locationMethod
+    } = entryData;
 
-    // Try reverse-geocoding if coordinates are provided
-    if (e.lat != null && e.lng != null) {
-      try {
-        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${e.lat}&lon=${e.lng}`;
-        console.log("Reverse-geocoding URL:", url);
-
-        const response = await fetch(url, {
-          headers: {
-            "User-Agent": "Paid-to-Poo-App/1.0",
-            "Accept": "application/json"
-          }
-        });
-        const data = await response.json();
-        console.log("Nominatim response address:", data.address);
-
-        const addr = data.address || {};
-        // Pick the best available label
-        city =
-          addr.city_district ||
-          addr.suburb ||
-          addr.municipality ||
-          addr.county ||
-          null;
-
-        // Fallback: use the second segment of display_name if still null
-        if (!city && data.display_name) {
-          const parts = data.display_name.split(",");
-          if (parts.length > 1) city = parts[1].trim();
-        }
-      } catch (err) {
-        console.error("Reverse-geocode error:", err);
-      }
+    // Basic Validation
+    if (!username || !token || typeof duration !== 'number' || typeof earnings !== 'number' || typeof currentRate !== 'number') {
+      console.error("API Validation Error: Missing required fields", entryData);
+      return res.status(400).json({ message: 'Missing or invalid required fields.' });
     }
+    
+    const dataToSave = {
+      username,
+      token,
+      duration: Number(duration),
+      earnings: Number(earnings),
+      currentRate: Number(currentRate),
+      timestamp: Timestamp.fromMillis(Number(timestamp || Date.now())), // Ensure timestamp is a Firestore Timestamp
+      lat: lat !== null && !isNaN(Number(lat)) ? Number(lat) : null,
+      lng: lng !== null && !isNaN(Number(lng)) ? Number(lng) : null,
+      city: city || null, // Use city provided by client
+      locationMethod,
+      serverTimestamp: serverTimestamp(), // Good practice
+    };
 
-    // Last-resort fallback: coordinates string
-    if (!city && e.lat != null && e.lng != null) {
-      city = `${e.lat.toFixed(4)}, ${e.lng.toFixed(4)}`;
-      console.log("Falling back to coords as city:", city);
-    }
-
-    // Persist to Firestore
     try {
-      const docRef = await addDoc(collection(db, "pooLogs"), { ...e, city });
-      console.log("Saved log with ID:", docRef.id, "city:", city);
-      return res.status(200).json({ id: docRef.id, city });
+      console.time("firestore_write_log");
+      const docRef = await addDoc(collection(db, "pooLogs"), dataToSave);
+      console.timeEnd("firestore_write_log");
+      console.log("Saved log with ID:", docRef.id, "Data:", dataToSave);
+      
+      // Return the data that was saved, including the new ID
+      // Convert Firestore Timestamps back for the client if it expects milliseconds or ISO strings
+      return res.status(201).json({ 
+        id: docRef.id, 
+        ...dataToSave,
+        timestamp: dataToSave.timestamp.toMillis(),
+        // serverTimestamp will be populated by Firestore on read if needed
+      });
     } catch (err) {
-      console.error("Firestore error:", err);
-      return res.status(500).end("Error saving log");
+      console.error("Firestore POST error:", err);
+      return res.status(500).json({ message: "Error saving log", error: err.message });
     }
   }
 
@@ -65,13 +60,27 @@ export default async function handler(req, res) {
   if (req.method === "GET") {
     console.log("Handling GET /api/log");
     try {
-      const snap = await getDocs(collection(db, "pooLogs"));
-      const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      console.time("firestore_read_logs");
+      const logsCollectionRef = collection(db, "pooLogs");
+      const q = query(logsCollectionRef, orderBy("timestamp", "desc")); // Order by user's timestamp
+      const snapshot = await getDocs(q);
+      console.timeEnd("firestore_read_logs");
+
+      const all = snapshot.docs.map((d) => {
+        const data = d.data();
+        return { 
+          id: d.id, 
+          ...data,
+          // Ensure timestamps are consistently returned as milliseconds
+          timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toMillis() : (data.timestamp ? new Date(data.timestamp).getTime() : null),
+          serverTimestamp: data.serverTimestamp instanceof Timestamp ? data.serverTimestamp.toMillis() : undefined,
+        };
+      });
       console.log(`Returning ${all.length} logs`);
       return res.status(200).json(all);
     } catch (err) {
       console.error("Firestore GET error:", err);
-      return res.status(500).end("Error fetching logs");
+      return res.status(500).json({ message: "Error fetching logs", error: err.message });
     }
   }
 
