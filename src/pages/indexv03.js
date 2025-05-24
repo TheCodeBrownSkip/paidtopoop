@@ -1,8 +1,8 @@
 ﻿// src/pages/index.js (DashboardPage)
 import Head from 'next/head';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getIdentity, clearIdentity, storeIdentity, generateAndStoreIdentity } from '@/utils/identity';
+import { getIdentity, clearIdentity, storeIdentity } from '@/utils/identity';
 import { useRouter } from 'next/router';
 
 const formatDuration = (seconds) => {
@@ -13,16 +13,6 @@ const formatDuration = (seconds) => {
   return `${minutes}m ${remainingSeconds}s`;
 };
 
-function obfuscateLocation(latitude, longitude, maxOffsetMeters = 500) {
-  const earthRadiusMeters = 6378137;
-  const latOffsetDegrees = (Math.random() * 2 - 1) * (maxOffsetMeters / earthRadiusMeters) * (180 / Math.PI);
-  const lngOffsetDegrees = (Math.random() * 2 - 1) * (maxOffsetMeters / earthRadiusMeters) * (180 / Math.PI) / Math.cos(latitude * Math.PI / 180);
-  return {
-    lat: latitude + latOffsetDegrees,
-    lng: longitude + lngOffsetDegrees,
-  };
-}
-
 export default function DashboardPage() {
   const router = useRouter();
   
@@ -31,7 +21,7 @@ export default function DashboardPage() {
   
   const [allLogs, setAllLogs] = useState([]);
   const [userLogs, setUserLogs] = useState([]);
-  const [loadingState, setLoadingState] = useState({ initial: true, logs: false, recovery: false, geocoding: false });
+  const [loadingState, setLoadingState] = useState({ initial: true, logs: false, recovery: false });
 
   const INITIAL_DISPLAY_LIMIT = 5;
   const [displayLimit, setDisplayLimit] = useState(INITIAL_DISPLAY_LIMIT);
@@ -57,44 +47,6 @@ export default function DashboardPage() {
   const [recoveryCodeInput, setRecoveryCodeInput] = useState('');
   const [recoveryError, setRecoveryError] = useState('');
 
-  const fetchAndProcessAllLogs = useCallback(async (currentIdentityPassed = identity) => {
-    const currentProcessingIdentity = currentIdentityPassed.username ? currentIdentityPassed : identity;
-    setLoadingState(prev => ({ ...prev, logs: true }));
-    try {
-      const response = await fetch('/api/log'); 
-      if (!response.ok) throw new Error('Failed to fetch logs');
-      const fetchedLogs = await response.json() || [];
-      setAllLogs(fetchedLogs); 
-
-      if (currentProcessingIdentity.username && currentProcessingIdentity.token) {
-        const filtered = fetchedLogs.filter(log => log.username === currentProcessingIdentity.username && log.token === currentProcessingIdentity.token);
-        const sortedUserLogs = filtered.sort((a, b) => b.timestamp - a.timestamp);
-        setUserLogs(sortedUserLogs);
-        setDisplayLimit(INITIAL_DISPLAY_LIMIT);
-        const lastLocatedUserPoop = sortedUserLogs.find(log => log.city && log.city.trim() !== '');
-        setLastUserLocationCity(lastLocatedUserPoop ? lastLocatedUserPoop.city : null);
-      } else { 
-        setUserLogs([]); setLastUserLocationCity(null);
-      }
-
-      if (fetchedLogs.length > 0) {
-        const sortedGlobal = [...fetchedLogs].filter(l => typeof l.duration === 'number').sort((a, b) => b.duration - a.duration);
-        setGlobalTopPoops(sortedGlobal.slice(0, 10));
-        const cityForLocalLead = currentProcessingIdentity.username && lastUserLocationCity ? lastUserLocationCity : (fetchedLogs.find(l => l.city)?.city); 
-        if (cityForLocalLead) {
-          const filteredLocal = fetchedLogs.filter(l => typeof l.duration === 'number' && l.city && l.city.toLowerCase() === cityForLocalLead.toLowerCase());
-          setLocalTopPoops(filteredLocal.sort((a, b) => b.duration - a.duration).slice(0, 10));
-        } else { setLocalTopPoops([]); }
-      } else { setGlobalTopPoops([]); setLocalTopPoops([]); }
-    } catch (error) {
-      console.error("Error fetching/processing logs:", error);
-      setAllLogs([]); setUserLogs([]); setGlobalTopPoops([]); setLocalTopPoops([]);
-    } finally {
-      setLoadingState(prev => ({ ...prev, logs: false }));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [identity.username, identity.token, lastUserLocationCity]); // Dependencies for useCallback
-
   useEffect(() => {
     const id = getIdentity(); 
     setIdentity(id); 
@@ -102,24 +54,103 @@ export default function DashboardPage() {
   }, []); 
   
   useEffect(() => {
-    if (loadingState.initial) return; 
+    if (loadingState.initial) return; // Wait for initial identity check
+
     const processIdentityData = async () => {
         if (identity.username && identity.token) {
             const tokenRateKey = `latestRate_${identity.token}`;
             const userRateKey = `rate_${identity.username}`; 
             let rateToSet = null;
             const latestRateString = localStorage.getItem(tokenRateKey);
-            if (latestRateString) { try { const rE = JSON.parse(latestRateString); if (rE && typeof rE.rate === 'number') rateToSet = rE.rate; } catch (e) {} }
-            else { const oURS = localStorage.getItem(userRateKey); if (oURS) { try { rateToSet = JSON.parse(oURS); if (rateToSet !== null) localStorage.setItem(tokenRateKey, JSON.stringify({ rate: rateToSet, timestamp: Date.now() })); } catch (e) {} }}
+            
+            if (latestRateString) {
+                try {
+                const rateEntry = JSON.parse(latestRateString);
+                if (rateEntry && typeof rateEntry.rate === 'number') rateToSet = rateEntry.rate;
+                } catch (e) { console.error("Error parsing latestRate for token:", e); }
+            } else {
+                const oldUserRateString = localStorage.getItem(userRateKey);
+                if (oldUserRateString) {
+                    try {
+                        rateToSet = JSON.parse(oldUserRateString);
+                        if (rateToSet !== null) localStorage.setItem(tokenRateKey, JSON.stringify({ rate: rateToSet, timestamp: Date.now() }));
+                    } catch (e) { console.error("Error parsing old userRate:", e); }
+                }
+            }
             setRate(rateToSet); 
-            await fetchAndProcessAllLogs(identity); 
+            if (rateToSet === null && !showRateModal && !showRecoveryModal && !showLogLocationModal) {
+                // setShowRateModal(true); // Optionally auto-prompt for rate
+            }
         } else { 
-            setRate(null); setUserLogs([]); setLastUserLocationCity(null);
-            if (allLogs.length === 0 && !loadingState.logs) { await fetchAndProcessAllLogs(identity); }
+            setRate(null);
+            setUserLogs([]);
+            setLastUserLocationCity(null);
         }
+        // Always fetch all logs to update leaderboards and user logs if identity is now set
+        await fetchAndProcessAllLogs(identity); 
     };
+
     processIdentityData();
-  }, [identity, loadingState.initial, fetchAndProcessAllLogs]); 
+
+  }, [identity, loadingState.initial]); 
+
+
+  const fetchAndProcessAllLogs = async (currentIdentity = identity) => {
+    setLoadingState(prev => ({ ...prev, logs: true }));
+    try {
+      const response = await fetch('/api/log'); 
+      if (!response.ok) throw new Error('Failed to fetch logs');
+      const fetchedLogs = await response.json() || [];
+      setAllLogs(fetchedLogs); 
+
+      if (currentIdentity.username && currentIdentity.token) {
+        const filtered = fetchedLogs.filter(log => log.username === currentIdentity.username && log.token === currentIdentity.token);
+        const sortedUserLogs = filtered.sort((a, b) => b.timestamp - a.timestamp);
+        setUserLogs(sortedUserLogs);
+        setDisplayLimit(INITIAL_DISPLAY_LIMIT);
+
+        const lastLocatedUserPoop = sortedUserLogs.find(log => log.city && log.city.trim() !== '');
+        setLastUserLocationCity(lastLocatedUserPoop ? lastLocatedUserPoop.city : null);
+      } else { 
+        setUserLogs([]);
+        setLastUserLocationCity(null);
+      }
+
+      if (fetchedLogs.length > 0) {
+        const sortedGlobal = [...fetchedLogs].filter(l => typeof l.duration === 'number').sort((a, b) => b.duration - a.duration);
+        setGlobalTopPoops(sortedGlobal.slice(0, 10));
+        
+        const cityForLocalLead = currentIdentity.username && lastUserLocationCity 
+                           ? lastUserLocationCity 
+                           : (fetchedLogs.find(l => l.city)?.city); 
+
+        if (cityForLocalLead) {
+          const filteredLocal = fetchedLogs.filter(l => typeof l.duration === 'number' && l.city && l.city.toLowerCase() === cityForLocalLead.toLowerCase());
+          const sortedLocal = filteredLocal.sort((a, b) => b.duration - a.duration);
+          setLocalTopPoops(sortedLocal.slice(0, 10));
+        } else {
+          setLocalTopPoops([]);
+        }
+      } else {
+        setGlobalTopPoops([]);
+        setLocalTopPoops([]);
+      }
+    } catch (error) {
+      console.error("Error fetching or processing logs:", error);
+      setAllLogs([]); setUserLogs([]); setGlobalTopPoops([]); setLocalTopPoops([]);
+    } finally {
+      setLoadingState(prev => ({ ...prev, logs: false }));
+    }
+  };
+  
+  // This useEffect ensures that if allLogs is empty AND we are past initial loading AND not currently fetching, try once.
+  useEffect(() => {
+    if (allLogs.length === 0 && !loadingState.logs && !loadingState.initial) {
+        fetchAndProcessAllLogs(identity); 
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps 
+  }, [allLogs.length, loadingState.logs, loadingState.initial]); // Identity is implicitly handled by fetchAndProcessAllLogs
+
 
   useEffect(() => { 
     if (!timing) return;
@@ -130,73 +161,165 @@ export default function DashboardPage() {
   const handleSaveRate = () => { 
     if (!tempAmt || isNaN(Number(tempAmt))) { alert("Please enter a valid salary amount."); return; }
     const finalRate = unit === 'annual' ? Number(tempAmt) / 2080 : Number(tempAmt);
+    
     let currentId = identity;
-    if (!currentId.username) { currentId = generateAndStoreIdentity(); setIdentity(currentId); }
+    if (!currentId.username) { 
+        currentId = getIdentity(); 
+        setIdentity(currentId); 
+    }
+
     if (currentId.username && currentId.token) {
         localStorage.setItem(`rate_${currentId.username}`, JSON.stringify(finalRate));
         localStorage.setItem(`latestRate_${currentId.token}`, JSON.stringify({ rate: finalRate, timestamp: Date.now() }));
-    } else { console.error("Could not obtain identity to save rate."); alert("Error: User identity missing."); return; }
-    setRate(finalRate); setTempAmt(''); setShowRateModal(false);
+    } else { 
+        console.error("Could not obtain identity to save rate.");
+        alert("Error saving rate: User identity not found. Please refresh.");
+        return;
+    }
+    setRate(finalRate);
+    setTempAmt(''); 
+    setShowRateModal(false);
   };
 
   const handleStartTimer = () => { 
     let currentId = identity;
-    if (!currentId.username) { currentId = generateAndStoreIdentity(); setIdentity(currentId); }
-    if (rate === null) { setShowRateModal(true); alert("Please set your salary/rate first!"); return; }
-    setElapsed(0); setTiming(true); setStart(Date.now());
+    if (!currentId.username) {
+        currentId = getIdentity();
+        setIdentity(currentId);
+    }
+    if (!rate) { 
+        setShowRateModal(true); 
+        alert("Please set your salary/rate first!"); 
+        return; 
+    }
+    setElapsed(0);
+    setTiming(true);
+    setStart(Date.now());
   };
 
-  const handleStopTimerAndPrepareLog = () => { setTiming(false); setShowLogLocationModal(true); setLogLocationMethod('auto'); setLogCity(''); };
+  const handleStopTimerAndPrepareLog = () => { 
+    setTiming(false); 
+    setShowLogLocationModal(true);
+    setLogLocationMethod('auto'); 
+    setLogCity('');
+  };
 
   const handleSubmitLog = async () => { 
-    if (rate === null || elapsed <= 0) { alert("Log error: Rate not set or timer not run."); setShowLogLocationModal(false); return; }
-    if (!identity.username || !identity.token) { alert("Log error: User not identified."); setShowLogLocationModal(false); return;}
-    setIsSubmittingLog(true); setLoadingState(prev => ({ ...prev, geocoding: logLocationMethod === 'auto' }));
+    if (!rate || elapsed <= 0) { alert("Cannot submit log: Rate not set or timer not run."); setShowLogLocationModal(false); return; }
+    if (!identity.username || !identity.token) { alert("Cannot submit log: User not identified."); setShowLogLocationModal(false); return;}
+
+    setIsSubmittingLog(true);
     const calculatedEarnings = ((rate * elapsed) / 3600).toFixed(2);
-    let logDataPayload = { username: identity.username, token: identity.token, duration: elapsed, earnings: Number(calculatedEarnings), currentRate: rate, timestamp: Date.now(), lat: null, lng: null, city: null, locationMethod: '' };
+    
+    let logDataPayload = { 
+      username: identity.username, 
+      token: identity.token, 
+      duration: elapsed, 
+      earnings: Number(calculatedEarnings),
+      currentRate: rate, 
+      timestamp: Date.now(), 
+      lat: null, lng: null, city: null, locationMethod: '',
+    };
     let locationDetermined = false;
     if (logLocationMethod === 'auto') { 
         if (navigator.geolocation) {
             try { 
-                const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout:10000, enableHighAccuracy: true}));
-                const obf = obfuscateLocation(pos.coords.latitude, pos.coords.longitude);
-                logDataPayload.lat = obf.lat; logDataPayload.lng = obf.lng; logDataPayload.locationMethod = 'auto_obfuscated';
-                try { const geoR = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`, {headers: {'User-Agent':`${identity.username||'PooAppUser'}-PaidToPooApp/1.0`}}); if (geoR.ok) { const gD=await geoR.json(); logDataPayload.city=gD.address?.city||gD.address?.town||gD.address?.village||gD.address?.suburb||gD.address?.city_district||null;} } catch(e){}
+                const position = await new Promise((resolve, reject) => 
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {timeout:10000, enableHighAccuracy: true})
+                );
+                logDataPayload.lat = position.coords.latitude;
+                logDataPayload.lng = position.coords.longitude;
+                logDataPayload.locationMethod = 'auto';
                 locationDetermined = true;
-            } catch (geoE) { alert(`Geolocation failed: ${geoE.message}. Enter city manually.`); setLogLocationMethod('manual');}
-        } else { alert("Geolocation not supported. Enter city manually."); setLogLocationMethod('manual');}
+            } catch (geoError) { 
+                alert(`Geolocation failed: ${geoError.message}. Please enter city manually.`);
+                setLogLocationMethod('manual'); setIsSubmittingLog(false); return; 
+            }
+        } else { 
+            alert("Geolocation is not supported. Please enter city manually.");
+            setLogLocationMethod('manual'); setIsSubmittingLog(false); return;
+        }
     } else if (logLocationMethod === 'manual') { 
-        if (!logCity.trim()) { alert("Please enter a city name.");} else { logDataPayload.city = logCity.trim(); logDataPayload.locationMethod = 'manual'; locationDetermined = true;}
+        if (!logCity.trim()) { alert("Please enter a city name."); setIsSubmittingLog(false); return; }
+        logDataPayload.city = logCity.trim();
+        logDataPayload.locationMethod = 'manual';
+        locationDetermined = true;
     }
-    setLoadingState(prev => ({ ...prev, geocoding: false }));
-    if (!locationDetermined) { setIsSubmittingLog(false); return; }
+    if (!locationDetermined) { alert("Location not determined."); setIsSubmittingLog(false); return; }
     try { 
-        const resp = await fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataPayload) });
-        if (!resp.ok) { const eT = await resp.text(); throw new Error(`HTTP error! ${resp.status} - ${eT}`);}
-        const newLogAPI = await resp.json();
-        await fetchAndProcessAllLogs(identity); 
+        const response = await fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logDataPayload) });
+        if (!response.ok) { const errorText = await response.text(); throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);}
+        const newLogFromAPI = await response.json();
+        
+        await fetchAndProcessAllLogs(identity); // Await this to ensure data is fresh before navigation
         setShowLogLocationModal(false); setElapsed(0); 
-        const navD = newLogAPI && newLogAPI.timestamp ? newLogAPI : logDataPayload;
-        router.push(`/mapfocus?lat=${navD.lat??''}&lng=${navD.lng??''}&city=${encodeURIComponent(navD.city||'')}&user=${encodeURIComponent(navD.username)}&dur=${navD.duration}&earn=${navD.earnings}&ts=${navD.timestamp}`);
-    } catch (err) { console.error("API log submission error:", err); alert(`Failed to submit: ${err.message}`); } 
-    finally { setIsSubmittingLog(false); }
+        
+        const navData = newLogFromAPI && newLogFromAPI.timestamp ? newLogFromAPI : logDataPayload;
+        router.push( 
+            `/mapfocus?lat=${navData.lat ?? ''}&lng=${navData.lng ?? ''}&city=${encodeURIComponent(navData.city || '')}&user=${encodeURIComponent(navData.username)}&dur=${navData.duration}&earn=${navData.earnings}&ts=${navData.timestamp}`
+        );
+    } catch (error) { console.error("Failed to submit log:", error); alert(`Failed to submit log: ${error.message}.`);
+    } finally { setIsSubmittingLog(false); }
   };
 
-  const handleLogItemClick = (log) => { router.push(`/mapfocus?lat=${log.lat??''}&lng=${log.lng??''}&city=${encodeURIComponent(log.city||'')}&user=${encodeURIComponent(log.username)}&dur=${log.duration}&earn=${log.earnings}&ts=${log.timestamp}`); };
-  const handleShowAllLogs = () => { setDisplayLimit(userLogs.length); };
-  const handleLogout = () => { if(identity.username) localStorage.removeItem(`rate_${identity.username}`); clearIdentity(); setIdentity({ username:'',token:''}); setRate(null); setUserLogs([]); setLastUserLocationCity(null); };
+  const handleLogItemClick = (log) => { 
+    router.push(
+        `/mapfocus?lat=${log.lat ?? ''}&lng=${log.lng ?? ''}&city=${encodeURIComponent(log.city || '')}&user=${encodeURIComponent(log.username)}&dur=${log.duration}&earn=${log.earnings}&ts=${log.timestamp}`
+    );
+  };
+
+  const handleShowAllLogs = () => { 
+    setDisplayLimit(userLogs.length);
+  };
+
+  const handleLogout = () => { 
+    if(identity.username) { 
+        localStorage.removeItem(`rate_${identity.username}`); 
+    }
+    clearIdentity(); 
+    setIdentity({ username: '', token: '' }); 
+    setRate(null); 
+    setUserLogs([]); 
+    setLastUserLocationCity(null);
+    // UI will update due to identity change, no need to router.push('/')
+  };
+
   const handleRecoverAccount = async () => { 
-    if (!recoveryCodeInput.trim()) { setRecoveryError('Enter recovery code.'); return; }
-    setRecoveryError(''); setLoadingState(p => ({ ...p, recovery:true, logs:true }));
-    let currentLogs = allLogs;
-    if (currentLogs.length === 0 && !loadingState.logs) { try { const r = await fetch('/api/log'); if(!r.ok) throw new Error("Fetch fail"); currentLogs = await r.json()||[]; setAllLogs(currentLogs); } catch(e){ setRecoveryError("Data fetch error."); setLoadingState(p=>({...p,recovery:false,logs:false})); return;}}
-    const userTokenLogs = currentLogs.filter(l => l.token === recoveryCodeInput.trim());
-    if (userTokenLogs.length > 0) {
-      userTokenLogs.sort((a,b)=>b.timestamp-a.timestamp); const latestLog = userTokenLogs[0];
-      const recId = {username:latestLog.username, token:latestLog.token}; storeIdentity(recId); setIdentity(recId);
-      setShowRecoveryModal(false); setRecoveryCodeInput('');
-    } else { setRecoveryError('Invalid code or no logs for this code.'); }
-    setLoadingState(p => ({ ...p, recovery:false, logs:false }));
+    if (!recoveryCodeInput.trim()) { setRecoveryError('Please enter a recovery code.'); return; }
+    setRecoveryError(''); 
+    setLoadingState(prev => ({ ...prev, recovery: true, logs: true }));
+    
+    let currentAllLogs = allLogs;
+    if (currentAllLogs.length === 0 && !loadingState.logs) {
+        try {
+            const response = await fetch('/api/log');
+            if (!response.ok) throw new Error("Could not fetch logs for recovery check");
+            currentAllLogs = await response.json() || [];
+            setAllLogs(currentAllLogs); 
+        } catch (e) {
+            setRecoveryError("Error fetching data for recovery. Try again.");
+            setLoadingState(prev => ({ ...prev, recovery: false, logs: false }));
+            return;
+        }
+    }
+
+    const userLogsForToken = currentAllLogs.filter(log => log.token === recoveryCodeInput.trim());
+    if (userLogsForToken.length > 0) {
+      userLogsForToken.sort((a, b) => b.timestamp - a.timestamp);
+      const latestLogForToken = userLogsForToken[0];
+
+      const recoveredIdentity = { username: latestLogForToken.username, token: latestLogForToken.token };
+      storeIdentity(recoveredIdentity); 
+      // Set identity. The useEffect depending on `identity` will handle fetching rate and processing logs.
+      setIdentity(recoveredIdentity); 
+
+      setShowRecoveryModal(false); 
+      setRecoveryCodeInput('');
+    } else { 
+      setRecoveryError('Invalid recovery code or no logs found for this code.'); 
+    }
+    // Let the main data fetching useEffect handle logs loading state after identity is set
+    setLoadingState(prev => ({ ...prev, recovery: false })); 
   };
 
   const primaryButtonClasses = "text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-blue-800 transition-colors duration-150";
@@ -227,10 +350,10 @@ export default function DashboardPage() {
   return (
     <>
       <Head><title>Poo Dashboard | Paid-to-Poo</title></Head>
+
       <div className="min-h-screen bg-gradient-to-br from-blue-100 via-indigo-100 to-sky-100 dark:from-slate-900 dark:via-slate-800 dark:to-sky-900 p-4 sm:p-6 md:p-8">
         <main className="container mx-auto max-w-6xl bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 flex flex-col gap-8">
           
-          {/* Header Section */}
           <section className="pb-6 border-b border-gray-200 dark:border-slate-700">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                 <div>
@@ -254,7 +377,7 @@ export default function DashboardPage() {
                     {!identity.username && (
                          <button onClick={() => { setShowRecoveryModal(true); setRecoveryError(''); }} className={`${primaryButtonClasses} !w-full sm:!w-auto whitespace-nowrap`}>Use Recovery Code</button>
                     )}
-                    {identity.username && (
+                    {identity.username && ( // Only show if logged in
                         <Link href="/globallogmap" className={`${secondaryButtonClasses} !w-full sm:!w-auto text-center whitespace-nowrap`}>View Global Map</Link>
                     )}
                 </div>
@@ -262,7 +385,7 @@ export default function DashboardPage() {
             {identity.username && (
               <div className="mt-4 text-sm text-gray-600 dark:text-gray-300 space-y-1">
                 <p>
-                  <span className="font-semibold">Your Rate:</span> {rate !== null ? `$${Number(rate).toFixed(2)}/hr` : 'Not set'} 
+                  <span className="font-semibold">Your Rate:</span> {rate ? `$${Number(rate).toFixed(2)}/hr` : 'Not set'} 
                   <button onClick={() => setShowRateModal(true)} className="ml-2 text-blue-500 hover:underline text-xs font-medium">(Set/Change)</button>
                 </p>
                 <div>
@@ -282,11 +405,11 @@ export default function DashboardPage() {
                         Welcome to Paid-to-Poo!
                     </h2>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                        Ready to see how much you earn on your breaks? Click below to set your salary rate and get started.
+                        Ready to see how much you earn on your breaks? Set your salary rate below to get started.
                         A unique username and a recovery code will be generated for you.
                         <br />
                         <span className="block mt-2">
-                            Returning user? Click "Use Recovery Code" above.
+                            Already have an account? Use your <button onClick={() => { setShowRecoveryModal(true); setRecoveryError(''); }} className="text-blue-500 hover:underline font-medium">Recovery Code</button>.
                         </span>
                     </p>
                     <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -294,14 +417,14 @@ export default function DashboardPage() {
                             onClick={() => { 
                                 let currentId = identity;
                                 if (!currentId.username) { 
-                                    currentId = generateAndStoreIdentity(); 
+                                    currentId = getIdentity(); 
                                     setIdentity(currentId); 
                                 }
                                 setShowRateModal(true); 
                             }} 
                             className={`${primaryButtonClasses} !w-full sm:!w-auto`}
                         >
-                            Set Rate & Begin Tracking
+                            Set Rate & Begin
                         </button>
                     </div>
                 </div>
@@ -314,7 +437,7 @@ export default function DashboardPage() {
                 <div className="text-5xl sm:text-6xl font-mono text-blue-600 dark:text-blue-400 tabular-nums mb-3">
                 {`${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`}
                 </div>
-                {rate !== null && timing && (
+                {rate && timing && (
                 <div className="text-lg text-gray-700 dark:text-gray-200 mb-4">
                     Earned: <span className="font-bold text-blue-700 dark:text-blue-300">${((rate * elapsed) / 3600).toFixed(2)}</span>
                 </div>
@@ -326,7 +449,7 @@ export default function DashboardPage() {
                     <button onClick={handleStopTimerAndPrepareLog} className={`${errorButtonClasses} py-3 text-lg flex-1 !w-full sm:!w-auto`}>Stop & Log</button>
                 )}
                 </div>
-                {rate === null && identity.username && !showRateModal && <p className="text-xs text-red-500 mt-2">Please set your rate to calculate earnings.</p>}
+                {!rate && identity.username && !showRateModal && <p className="text-xs text-red-500 mt-2">Please set your rate to calculate earnings.</p>}
             </section>
           )}
           
@@ -398,7 +521,7 @@ export default function DashboardPage() {
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-2xl w-full max-w-md space-y-4">
               <h3 className="text-xl font-semibold text-blue-700 dark:text-blue-300">Set Your Salary/Rate</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                {rate !== null && identity.username ? "Update your current rate." : "Enter your salary to calculate earnings during breaks."}
+                {rate && identity.username ? "Update your current rate." : "Enter your salary to calculate earnings during breaks."}
               </p>
               <div><input id="modalSalary" type="number" placeholder="Salary Amount" value={tempAmt} onChange={e => setTempAmt(e.target.value)} className={inputClasses}/></div>
               <div>
@@ -408,7 +531,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-gray-500 mt-1">{unit === 'annual' ? 'Annual converted to hourly.' : 'Direct hourly rate.'}</p>
               </div>
               <div className="flex gap-3">
-                {(rate !== null || identity.username) && <button onClick={() => setShowRateModal(false)} className={`${secondaryButtonClasses} !w-full`}>Cancel</button> }
+                {(rate || identity.username) && <button onClick={() => setShowRateModal(false)} className={`${secondaryButtonClasses} !w-full`}>Cancel</button> }
                 <button onClick={handleSaveRate} className={`${primaryButtonClasses} !w-full`}>Save Rate</button>
               </div>
             </div>
@@ -428,9 +551,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setShowLogLocationModal(false)} className={`${secondaryButtonClasses} !w-full`}>Cancel</button>
-                <button onClick={handleSubmitLog} disabled={isSubmittingLog || loadingState.geocoding} className={`${primaryButtonClasses} !w-full`}>
-                    {isSubmittingLog ? (loadingState.geocoding ? 'Getting Location...' : 'Submitting...') : 'Submit Log'}
-                </button>
+                <button onClick={handleSubmitLog} disabled={isSubmittingLog} className={`${primaryButtonClasses} !w-full`}>{isSubmittingLog ? 'Submitting...' : 'Submit Log'}</button>
               </div>
             </div>
           </div>
@@ -447,7 +568,7 @@ export default function DashboardPage() {
                     <div className="flex gap-3">
                         <button onClick={() => {setShowRecoveryModal(false); setRecoveryError('');}} className={`${secondaryButtonClasses} !w-full`}>Cancel</button>
                         <button onClick={handleRecoverAccount} disabled={loadingState.recovery || loadingState.logs} className={`${primaryButtonClasses} !w-full`}>
-                            {loadingState.recovery || loadingState.logs ? 'Verifying...' : 'Recover'} 
+                            {loadingState.recovery ? 'Verifying...' : 'Recover'}
                         </button>
                     </div>
                 </div>
