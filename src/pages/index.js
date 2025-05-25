@@ -379,7 +379,7 @@ export default function DashboardPage() {
                     <h2 className="text-xl font-semibold text-blue-700 dark:text-blue-300 mb-3">
                         Welcome to Paid-to-Poo!
                     </h2>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-500 mb-4">
                         Ready to see how much you earn on your breaks? Click below to set your salary rate and get started.
                         A unique username and a recovery code will be generated for you.
                         <br />
@@ -431,8 +431,8 @@ export default function DashboardPage() {
           {identity.username && (
             <section>
                 <h2 className="text-2xl font-semibold text-blue-700 dark:text-blue-300 mb-4">Your Recent Breaks</h2>
-                {loadingState.logs && userLogs.length === 0 && <p className="text-gray-500 dark:text-gray-400">Loading your breaks...</p>}
-                {!loadingState.logs && userLogs.length === 0 && (<p className="text-gray-500 dark:text-gray-400">You haven't logged any breaks yet.</p>)}
+                {loadingState.logs && userLogs.length === 0 && <p className="text-gray-500 dark:text-gray-500">Loading your breaks...</p>}
+                {!loadingState.logs && userLogs.length === 0 && (<p className="text-gray-500 dark:text-gray-500">You haven't logged any breaks yet.</p>)}
                 {!loadingState.logs && userLogs.length > 0 && (
                 <ul className={`space-y-3 pr-2 ${displayLimit < userLogs.length ? 'max-h-96 overflow-y-auto' : ''}`}>
                     {userLogs.slice(0, displayLimit).map(log => (
@@ -444,7 +444,7 @@ export default function DashboardPage() {
                         </span>
                         <span className="text-sm font-semibold text-green-600 dark:text-green-400">${Number(log.earnings).toFixed(2)}</span>
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                         Duration: {formatDuration(log.duration)}
                         {log.city && <span className="ml-2 pl-2 border-l border-gray-300 dark:border-slate-600"> | {log.city}</span>}
                         </p>
@@ -468,23 +468,23 @@ export default function DashboardPage() {
                 <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-300 mb-3 border-b pb-2 dark:border-slate-600">
                     Local Top 10 {lastUserLocationCity ? `(Near ${lastUserLocationCity})` : "(Log Poop w/ City)"}
                 </h3>
-                {loadingState.logs && localTopPoops.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-400">Loading...</p> : 
+                {loadingState.logs && localTopPoops.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-500">Loading...</p> :
                 localTopPoops.length > 0 ? (
                     <ul className="space-y-1 max-h-80 overflow-y-auto pr-1">
                     {localTopPoops.map((log, index) => <LeaderboardItem key={`local-${index}-${log.timestamp}`} log={log} rank={index + 1} />)}
                     </ul>
-                ) : ( <p className="text-xs text-gray-500 dark:text-gray-400">{lastUserLocationCity ? "No other poops here." : "Log poop with city for local stats."}</p> )}
+                ) : ( <p className="text-xs text-gray-500 dark:text-gray-500">{lastUserLocationCity ? "No other poops here." : "Log poop with city for local stats."}</p> )}
                 </div>
                 <div className="p-4 bg-gray-50 dark:bg-slate-750 rounded-lg shadow">
                 <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-300 mb-3 border-b pb-2 dark:border-slate-600">
                     Global Top 10 Poopers
                 </h3>
-                {loadingState.logs && globalTopPoops.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-400">Loading...</p> :
+                {loadingState.logs && globalTopPoops.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-500">Loading...</p> :
                 globalTopPoops.length > 0 ? (
                     <ul className="space-y-1 max-h-80 overflow-y-auto pr-1">
                     {globalTopPoops.map((log, index) => <LeaderboardItem key={`global-${index}-${log.timestamp}`} log={log} rank={index + 1} />)}
                     </ul>
-                ) : ( <p className="text-xs text-gray-500 dark:text-gray-400">Be the first global record setter!</p> )}
+                ) : ( <p className="text-xs text-gray-500 dark:text-gray-500">Be the first global record setter!</p> )}
                 </div>
             </section>
           )}
@@ -495,7 +495,7 @@ export default function DashboardPage() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-2xl w-full max-w-md space-y-4">
               <h3 className="text-xl font-semibold text-blue-700 dark:text-blue-300">Set Your Salary/Rate</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-gray-600 dark:text-gray-500">
                 {rate !== null && identity.username ? "Update your current rate." : "Enter your salary to calculate earnings during breaks."}
               </p>
               <div><input id="modalSalary" type="number" placeholder="Salary Amount" value={tempAmt} onChange={e => setTempAmt(e.target.value)} className={inputClasses}/></div>
@@ -518,10 +518,10 @@ export default function DashboardPage() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-2xl w-full max-w-md space-y-4">
               <h3 className="text-xl font-semibold text-blue-700 dark:text-blue-300">Log Location</h3>
-              <p className="text-sm text-gray-500">Location is required. If auto-detect fails, enter city manually.</p>
+              <p className="text-sm text-gray-600 dark:text-gray-500">Location is required. If auto-detect fails, enter city manually.</p>
               <div className="space-y-2">
-                <label className="flex items-center p-3 border rounded-lg cursor-pointer dark:border-slate-600"><input type="radio" name="locationMethod" value="auto" checked={logLocationMethod === 'auto'} onChange={() => setLogLocationMethod('auto')} className="form-radio text-blue-600"/> <span className="ml-3 text-gray-700 dark:text-gray-300">Use Current Location</span></label>
-                <label className="flex items-center p-3 border rounded-lg cursor-pointer dark:border-slate-600"><input type="radio" name="locationMethod" value="manual" checked={logLocationMethod === 'manual'} onChange={() => setLogLocationMethod('manual')} className="form-radio text-blue-600"/> <span className="ml-3 text-gray-700 dark:text-gray-300">Enter City Manually</span></label>
+                <label className="flex items-center p-3 border rounded-lg cursor-pointer dark:border-slate-600"><input type="radio" name="locationMethod" value="auto" checked={logLocationMethod === 'auto'} onChange={() => setLogLocationMethod('auto')} className="form-radio text-blue-600"/> <span className="ml-3 text-gray-700 dark:text-gray-400">Use Current Location</span></label>
+                <label className="flex items-center p-3 border rounded-lg cursor-pointer dark:border-slate-600"><input type="radio" name="locationMethod" value="manual" checked={logLocationMethod === 'manual'} onChange={() => setLogLocationMethod('manual')} className="form-radio text-blue-600"/> <span className="ml-3 text-gray-700 dark:text-gray-400">Enter City Manually</span></label>
                 {logLocationMethod === 'manual' && (<input id="logCityManual" type="text" placeholder="Enter city" value={logCity} onChange={e => setLogCity(e.target.value)} className={`${inputClasses} ml-8 mt-1 text-sm`}/>)}
               </div>
               <div className="flex gap-3 pt-2">
@@ -539,7 +539,7 @@ export default function DashboardPage() {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-2xl w-full max-w-md space-y-4">
                     <h3 className="text-xl font-semibold text-blue-700 dark:text-blue-300">Recover Account</h3>
-                    <p className="text-sm text-gray-600">Enter recovery code to restore session.</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-500">Enter recovery code to restore session.</p>
                     <div><input id="recoveryCode" type="text" placeholder="Recovery code" value={recoveryCodeInput} onChange={e => setRecoveryCodeInput(e.target.value)} className={inputClasses}/></div>
                     {recoveryError && <p className="text-xs text-red-500">{recoveryError}</p>}
                     <div className="flex gap-3">
