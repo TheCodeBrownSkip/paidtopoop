@@ -23,10 +23,20 @@ function obfuscateLocation(latitude, longitude, maxOffsetMeters = 500) {
   };
 }
 
+const standardizeCity = (city) => {
+  if (!city) return '';
+  // Remove extra spaces and special characters
+  let standardized = city.trim().replace(/[^\w\s-]/g, '');
+  // Capitalize first letter of each word
+  standardized = standardized.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+  return standardized;
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   
   const [identity, setIdentity] = useState({ username: '', token: '' });
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [rate, setRate] = useState(null);
   
   const [allLogs, setAllLogs] = useState([]);
@@ -248,13 +258,23 @@ export default function DashboardPage() {
             return; // Exit the function
         }
     } else if (logLocationMethod === 'manual') { 
-        if (!logCity.trim()) { 
-            alert("Please enter a city name.");
-            setIsSubmittingLog(false); // Reset before returning
-            // setLoadingState geocoding is already false or will be set in finally
-            return; 
+        const standardizedCity = standardizeCity(logCity);
+        if (!standardizedCity) {
+            alert("Please enter a valid city name.");
+            setIsSubmittingLog(false);
+            return;
         }
-        logDataPayload.city = logCity.trim(); 
+        if (standardizedCity.length < 2) {
+            alert("City name is too short.");
+            setIsSubmittingLog(false);
+            return;
+        }
+        if (standardizedCity.length > 50) {
+            alert("City name is too long.");
+            setIsSubmittingLog(false);
+            return;
+        }
+        logDataPayload.city = standardizedCity;
         logDataPayload.locationMethod = 'manual'; 
         locationDetermined = true;
     }
@@ -302,7 +322,18 @@ export default function DashboardPage() {
 
   const handleLogItemClick = (log) => { router.push(`/mapfocus?lat=${log.lat??''}&lng=${log.lng??''}&city=${encodeURIComponent(log.city||'')}&user=${encodeURIComponent(log.username)}&dur=${log.duration}&earn=${log.earnings}&ts=${log.timestamp}`); };
   const handleShowAllLogs = () => { setDisplayLimit(userLogs.length); };
-  const handleLogout = () => { if(identity.username) localStorage.removeItem(`rate_${identity.username}`); clearIdentity(); setIdentity({ username:'',token:''}); setRate(null); setUserLogs([]); setLastUserLocationCity(null); };
+  const handleLogout = () => setShowLogoutModal(true);
+  
+  const confirmLogout = () => {
+    const recoveryCode = identity.token;
+    if(identity.username) localStorage.removeItem(`rate_${identity.username}`);
+    clearIdentity();
+    setIdentity({ username:'', token:'' });
+    setRate(null);
+    setUserLogs([]);
+    setLastUserLocationCity(null);
+    setShowLogoutModal(false);
+  };
   const handleRecoverAccount = async () => { 
     if (!recoveryCodeInput.trim()) { setRecoveryError('Enter recovery code.'); return; }
     setRecoveryError(''); setLoadingState(p => ({ ...p, recovery:true, logs:true }));
@@ -626,6 +657,48 @@ export default function DashboardPage() {
                     </div>
                 </div>
             </div>
+        )}
+
+        {/* Logout Confirmation Modal */}
+        {showLogoutModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-2xl w-full max-w-md space-y-4">
+              <h3 className="text-xl font-semibold text-blue-700 dark:text-blue-300">Confirm Logout</h3>
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Before logging out, please save your recovery code. You'll need it to access your history again:
+                </p>
+                <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-slate-700 rounded-lg">
+                  <code className="flex-grow font-mono text-blue-700 dark:text-blue-300 select-all">
+                    {identity.token}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(identity.token);
+                      alert('Recovery code copied to clipboard!');
+                    }}
+                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                      <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                    </svg>
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Store this code somewhere safe. You can use it to recover your account and history on any device.
+                </p>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setShowLogoutModal(false)} className={`${secondaryButtonClasses} !w-full`}>
+                  Cancel
+                </button>
+                <button onClick={confirmLogout} className={`${errorButtonClasses} !w-full`}>
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </>
