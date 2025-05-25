@@ -54,7 +54,7 @@ export default function MapPage() {
     (async () => {
       try {
         L = await import('leaflet');
-        delete L.Icon.Default.prototype._getIconUrl;
+        if (L && L.Icon && L.Icon.Default && L.Icon.Default.prototype) delete L.Icon.Default.prototype._getIconUrl;
         L.Icon.Default.mergeOptions({
           iconRetinaUrl: iconRetinaUrl.src,
           iconUrl: iconUrl.src,
