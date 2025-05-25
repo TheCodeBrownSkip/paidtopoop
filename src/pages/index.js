@@ -1,6 +1,6 @@
 ﻿// src/pages/index.js (DashboardPage)
 import Head from 'next/head';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { getIdentity, clearIdentity, storeIdentity, generateAndStoreIdentity } from '@/utils/identity';
 import { useRouter } from 'next/router';
@@ -69,8 +69,6 @@ export default function DashboardPage() {
   const [unit, setUnit] = useState('hourly');
 
   const [showLogLocationModal, setShowLogLocationModal] = useState(false);
-  const [logLocationMethod, setLogLocationMethod] = useState('auto'); 
-  const [logCity, setLogCity] = useState('');
   const [isSubmittingLog, setIsSubmittingLog] = useState(false);
 
   const [globalTopPoops, setGlobalTopPoops] = useState([]);
@@ -176,7 +174,7 @@ export default function DashboardPage() {
     setElapsed(0); setTiming(true); setStart(Date.now());
   };
 
-  const handleStopTimerAndPrepareLog = () => { setTiming(false); setShowLogLocationModal(true); setLogLocationMethod('auto'); setLogCity(''); };
+  const handleStopTimerAndPrepareLog = () => { setTiming(false); setShowLogLocationModal(true); };
 
 // In src/pages/index.js (DashboardPage.js)
 
@@ -192,10 +190,8 @@ export default function DashboardPage() {
         return;
     }
 
-    setIsSubmittingLog(true); // Set submitting true at the very beginning
-    if (logLocationMethod === 'auto') {
-        setLoadingState(prev => ({ ...prev, geocoding: true }));
-    }
+    setIsSubmittingLog(true);
+    setLoadingState(prev => ({ ...prev, geocoding: true }));
 
     const calculatedEarnings = ((rate * elapsed) / 3600).toFixed(2);
     let logDataPayload = { 
@@ -212,71 +208,47 @@ export default function DashboardPage() {
     };
     let locationDetermined = false;
 
-    if (logLocationMethod === 'auto') { 
-        if (navigator.geolocation) {
-            try { 
-                const position = await new Promise((resolve, reject) => 
-                    navigator.geolocation.getCurrentPosition(resolve, reject, {timeout:10000, enableHighAccuracy: true})
+    if (navigator.geolocation) {
+        try {
+            const position = await new Promise((resolve, reject) =>
+                navigator.geolocation.getCurrentPosition(resolve, reject, {timeout:10000, enableHighAccuracy: true})
+            );
+            const obfuscated = obfuscateLocation(position.coords.latitude, position.coords.longitude);
+            logDataPayload.lat = obfuscated.lat;
+            logDataPayload.lng = obfuscated.lng;
+            logDataPayload.locationMethod = 'auto_obfuscated';
+            
+            let fetchedCity = null;
+            try {
+                const userAgent = `${identity.username || 'PooAppUser'}-PaidToPooApp/1.0`;
+                const geoResp = await fetch(
+                    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${position.coords.latitude}&lon=${position.coords.longitude}`,
+                    {headers: {'User-Agent': userAgent }}
                 );
-                const obfuscated = obfuscateLocation(position.coords.latitude, position.coords.longitude);
-                logDataPayload.lat = obfuscated.lat; 
-                logDataPayload.lng = obfuscated.lng; 
-                logDataPayload.locationMethod = 'auto_obfuscated';
-                
-                let fetchedCity = null;
-                try { 
-                    const userAgent = `${identity.username || 'PooAppUser'}-PaidToPooApp/1.0`;
-                    const geoResp = await fetch(
-                        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${position.coords.latitude}&lon=${position.coords.longitude}`, 
-                        {headers: {'User-Agent': userAgent }}
-                    ); 
-                    if (geoResp.ok) { 
-                        const geoData = await geoResp.json(); 
-                        fetchedCity = geoData.address?.city || geoData.address?.town || geoData.address?.village || geoData.address?.suburb || geoData.address?.city_district || null;
-                    } else {
-                        console.warn("Client-side Nominatim failed:", geoResp.status);
-                    }
-                } catch(e){
-                    console.warn("Client-side Nominatim error:", e);
+                if (geoResp.ok) {
+                    const geoData = await geoResp.json();
+                    fetchedCity = geoData.address?.city || geoData.address?.town || geoData.address?.village || geoData.address?.suburb || geoData.address?.city_district || null;
+                } else {
+                    console.warn("Client-side Nominatim failed:", geoResp.status);
                 }
-                logDataPayload.city = fetchedCity;
-                locationDetermined = true;
-            } catch (geoError) { 
-                alert(`Geolocation failed: ${geoError.message}. Enter city manually.`); 
-                setLogLocationMethod('manual'); // Switch to manual
-                // DO NOT return yet, let user correct in modal or cancel
-                // Reset loading states here as we are stopping this attempt
-                setLoadingState(prev => ({ ...prev, geocoding: false }));
-                setIsSubmittingLog(false); // Allow user to try again or cancel
-                return; // Exit the function, modal stays open for user to adjust
+            } catch(e){
+                console.warn("Client-side Nominatim error:", e);
             }
-        } else { 
-            alert("Geolocation is not supported. Enter city manually."); 
-            setLogLocationMethod('manual'); // Switch to manual
+            logDataPayload.city = fetchedCity;
+            locationDetermined = true;
+        } catch (geoError) {
+            alert(`Geolocation failed: ${geoError.message}. Location is required to log your break.`);
             setLoadingState(prev => ({ ...prev, geocoding: false }));
             setIsSubmittingLog(false);
-            return; // Exit the function
-        }
-    } else if (logLocationMethod === 'manual') { 
-        const standardizedCity = standardizeCity(logCity);
-        if (!standardizedCity) {
-            alert("Please enter a valid city name.");
-            setIsSubmittingLog(false);
+            setShowLogLocationModal(false);
             return;
         }
-        if (standardizedCity.length < 2) {
-            alert("City name is too short.");
-            setIsSubmittingLog(false);
-            return;
-        }
-        if (standardizedCity.length > 50) {
-            alert("City name is too long.");
-            setIsSubmittingLog(false);
-            return;
-        }
-        logDataPayload.city = standardizedCity;
-        logDataPayload.locationMethod = 'manual'; 
-        locationDetermined = true;
+    } else {
+        alert("Geolocation is not supported. Location is required to log your break.");
+        setLoadingState(prev => ({ ...prev, geocoding: false }));
+        setIsSubmittingLog(false);
+        setShowLogLocationModal(false);
+        return;
     }
     
     // Ensure geocoding loading state is false before API call,
@@ -369,13 +341,15 @@ export default function DashboardPage() {
     </li>
   );
 
-  if (loadingState.initial) { 
+  if (loadingState.initial) {
     return <div className="min-h-screen flex items-center justify-center bg-blue-50 dark:bg-slate-900"><p className="text-blue-600">Loading Dashboard...</p></div>;
   }
 
   return (
     <>
-      <Head><title>Poo Dashboard | Paid-to-Poo</title></Head>
+      <Head>
+        <title>Poo Dashboard | Paid-to-Poo</title>
+      </Head>
       <div className="min-h-screen bg-gradient-to-br from-blue-100 via-indigo-100 to-sky-100 dark:from-slate-900 dark:via-slate-800 dark:to-sky-900 p-4 sm:p-6 md:p-8">
         <main className="container mx-auto max-w-6xl bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 flex flex-col gap-8">
           
@@ -625,16 +599,20 @@ export default function DashboardPage() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-2xl w-full max-w-md space-y-4">
               <h3 className="text-xl font-semibold text-blue-700 dark:text-blue-300">Log Location</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-500">Location is required. If auto-detect fails, enter city manually.</p>
-              <div className="space-y-2">
-                <label className="flex items-center p-3 border rounded-lg cursor-pointer dark:border-slate-600"><input type="radio" name="locationMethod" value="auto" checked={logLocationMethod === 'auto'} onChange={() => setLogLocationMethod('auto')} className="form-radio text-blue-600"/> <span className="ml-3 text-gray-700 dark:text-gray-400">Use Current Location</span></label>
-                <label className="flex items-center p-3 border rounded-lg cursor-pointer dark:border-slate-600"><input type="radio" name="locationMethod" value="manual" checked={logLocationMethod === 'manual'} onChange={() => setLogLocationMethod('manual')} className="form-radio text-blue-600"/> <span className="ml-3 text-gray-700 dark:text-gray-400">Enter City Manually</span></label>
-                {logLocationMethod === 'manual' && (<input id="logCityManual" type="text" placeholder="Enter city" value={logCity} onChange={e => setLogCity(e.target.value)} className={`${inputClasses} ml-8 mt-1 text-sm`}/>)}
+              <p className="text-sm text-gray-600 dark:text-gray-500">Location is required to log your break.</p>
+              <div className="text-center">
+                <p className="text-sm text-gray-600 dark:text-gray-500 mb-4">
+                  Your location is required to log your break. This helps us show local statistics and create the poop map.
+                </p>
               </div>
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setShowLogLocationModal(false)} className={`${secondaryButtonClasses} !w-full`}>Cancel</button>
-                <button onClick={handleSubmitLog} disabled={isSubmittingLog || loadingState.geocoding} className={`${primaryButtonClasses} !w-full`}>
-                    {isSubmittingLog ? (loadingState.geocoding ? 'Getting Location...' : 'Submitting...') : 'Submit Log'}
+                <button
+                  onClick={handleSubmitLog}
+                  disabled={isSubmittingLog || loadingState.geocoding}
+                  className={`${primaryButtonClasses} !w-full`}
+                >
+                    {isSubmittingLog ? 'Getting Location...' : 'Submit Log'}
                 </button>
               </div>
             </div>
