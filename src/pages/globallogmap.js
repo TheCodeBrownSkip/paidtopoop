@@ -1,8 +1,6 @@
 // src/pages/globallogmap.js
 import Head from 'next/head';
-// useRouter is not used, can be removed if not planned for future use here
-// import { useRouter } from 'next/router'; 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react'; // Ensure all hooks are imported
 import Link from 'next/link';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -13,7 +11,7 @@ import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 
 const formatDuration = (seconds) => {
-  if (isNaN(Number(seconds)) || seconds === null) return 'N/A'; // Simplified Number check
+  if (isNaN(Number(seconds)) || seconds === null) return 'N/A';
   const numSeconds = Number(seconds);
   const minutes = Math.floor(numSeconds / 60);
   const remainingSeconds = numSeconds % 60;
@@ -21,21 +19,20 @@ const formatDuration = (seconds) => {
 };
 
 export default function GlobalLogMapPage() {
-  // const router = useRouter(); // Remove if not used
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerClusterGroupRef = useRef(null);
-  const LRef = useRef(null); // Store Leaflet instance once loaded
+  const LRef = useRef(null); 
 
   const [allLogs, setAllLogs] = useState([]);
-  const [loadingData, setLoadingData] = useState(true); // Changed from 'loading' to 'loadingData'
+  const [loadingData, setLoadingData] = useState(true); // Using this for data loading
   const [error, setError] = useState('');
-  const [isMapReady, setIsMapReady] = useState(false); // Combines canRenderMapDiv and map init status
+  const [isMapReady, setIsMapReady] = useState(false); // For map initialization readiness
 
   // Fetch logs
   useEffect(() => {
     setLoadingData(true);
-    setError(''); // Reset error on new fetch
+    setError('');
     fetch('/api/log') 
       .then(r => {
         if (!r.ok) throw new Error(`Failed to fetch logs: ${r.status} ${r.statusText}`);
@@ -52,28 +49,24 @@ export default function GlobalLogMapPage() {
       .finally(() => setLoadingData(false));
   }, []);
 
-  // Initialize map (including Leaflet and MarkerCluster loading)
+  // Initialize map
   useEffect(() => {
-    // This effect should only run once to attempt map setup.
-    // Actual map creation depends on mapContainerRef.current.
-    if (!mapContainerRef.current || mapInstanceRef.current) { // If no div or map already exists
-        if(mapInstanceRef.current) console.log("GlobalMap: Map instance already exists, skipping re-init.");
-        return;
+    if (!mapContainerRef.current || mapInstanceRef.current || isMapReady) {
+      if (mapInstanceRef.current) console.log("GlobalMap: Map instance already exists or map is already ready.");
+      return;
     }
     
     const container = mapContainerRef.current;
     if (container._leaflet_id) {
-      console.warn("GlobalMap: _leaflet_id found on container BEFORE init. This is unusual. Aborting.");
+      console.warn("GlobalMap: _leaflet_id found on container BEFORE init. Aborting.");
       return; 
     }
 
     console.log("GlobalMap: Attempting to initialize Leaflet map...");
-    let mapInitialized = false; // Flag to track if L.map was called
-
     (async () => {
       try {
         const L = await import('leaflet');
-        LRef.current = L; // Store L instance for use in other effects
+        LRef.current = L; 
         await import('leaflet.markercluster/dist/leaflet.markercluster.js'); 
 
         delete L.Icon.Default.prototype._getIconUrl;
@@ -83,14 +76,12 @@ export default function GlobalLogMapPage() {
           shadowUrl: shadowUrl.src,
         });
 
-        // Final check before creating map
         if (!mapContainerRef.current || mapInstanceRef.current || mapContainerRef.current._leaflet_id) {
-            console.warn("GlobalMap: Conditions changed before L.map() call. Aborting.");
+            console.warn("GlobalMap: Conditions for map init changed before L.map() call. Aborting.");
             return;
         }
 
         mapInstanceRef.current = L.map(mapContainerRef.current).setView([20, 0], 2);
-        mapInitialized = true; // Mark that L.map was called
         console.log("GlobalMap: L.map() successful.");
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -102,49 +93,36 @@ export default function GlobalLogMapPage() {
             markerClusterGroupRef.current = L.markerClusterGroup();
             mapInstanceRef.current.addLayer(markerClusterGroupRef.current);
             console.log("GlobalMap: MarkerClusterGroup initialized and added to map.");
-            setIsMapReady(true); // Signal that map and cluster group are ready
+            setIsMapReady(true); 
         } else {
             console.error("GlobalMap: L.markerClusterGroup is not a function after import!");
             setError("Failed to load map clustering feature.");
-            if (mapInstanceRef.current) mapInstanceRef.current.remove(); // Cleanup map
-            mapInstanceRef.current = null;
+            if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
         }
       } catch (e) {
         console.error("GlobalMap: Error initializing map or MarkerCluster:", e);
         setError(e.message || "Could not load map components.");
-        if (mapInstanceRef.current) mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
+        if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
       }
     })();
 
     return () => {
       console.log("GlobalMap: Cleaning up map instance...");
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
-      if (markerClusterGroupRef.current) {
-        // If you explicitly remove it from map:
-        // if (mapInstanceRef.current && markerClusterGroupRef.current) {
-        //   mapInstanceRef.current.removeLayer(markerClusterGroupRef.current);
-        // }
-        markerClusterGroupRef.current = null;
-      }
+      if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
+      if (markerClusterGroupRef.current) { markerClusterGroupRef.current = null; }
       LRef.current = null;
-      setIsMapReady(false); // Reset map ready state
+      setIsMapReady(false); 
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // This effect should run once when the component intends to mount the map.
-           // The actual map div rendering is implicitly handled by being in the JSX.
+  }, []); // Runs once on mount to attempt setup. isMapReady controls further marker logic.
 
   // Add markers to cluster group
   useEffect(() => {
     if (!isMapReady || !mapInstanceRef.current || !markerClusterGroupRef.current || loadingData || error || !LRef.current) {
-      // console.log("GlobalMap: Skipping marker update due to prerequisites not met.");
       return;
     }
     
-    const L = LRef.current; // Use the stored L instance
+    const L = LRef.current; 
     console.log("GlobalMap: Attempting to add markers. Log count:", allLogs.length);
     
     markerClusterGroupRef.current.clearLayers(); 
@@ -170,23 +148,21 @@ export default function GlobalLogMapPage() {
     } else {
         console.log("GlobalMap: No logs with coordinates to add to map.");
     }
-  }, [allLogs, loadingData, error, isMapReady]); // Depend on isMapReady
+  }, [allLogs, loadingData, error, isMapReady]); 
 
   const backButtonClasses = "text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-blue-800 transition-colors duration-150 !w-auto";
-  const mapDivHeightClass = "flex-grow min-h-[400px]"; // Give it a solid min-height
+  const mapDivHeightClass = "flex-grow min-h-[400px]";
 
   // Determine overall page status for rendering
   const pageStatus = (() => {
-    if (loadingState.initial) return "INITIAL_LOADING"; // Data for the page as a whole
+    if (loadingData && !isMapReady) return "LOADING_ALL"; // Data and map not ready
+    if (loadingData && isMapReady) return "MAP_READY_LOADING_DATA"; // Map ready, data loading
     if (error) return "ERROR";
-    if (loadingData && !isMapReady) return "LOADING_DATA_AND_MAP_NOT_READY"; // Data is loading, map not ready
-    if (loadingData && isMapReady) return "MAP_READY_LOADING_DATA"; // Map ready, data still loading for markers
-    if (!loadingData && !isMapReady && mapContainerRef.current) return "DATA_LOADED_MAP_INITIALIZING"; // Data loaded, map still trying to init
+    if (!loadingData && !isMapReady && mapContainerRef.current) return "DATA_LOADED_MAP_INITIALIZING";
     if (!loadingData && isMapReady && allLogs.length === 0) return "NO_LOGS_TO_DISPLAY";
     if (!loadingData && isMapReady) return "READY";
-    return "PREPARING"; // Default/fallback if mapContainerRef not yet available for map init
+    return "PREPARING"; // Default before mapContainerRef is available
   })();
-
 
   return (
     <>
@@ -210,24 +186,24 @@ export default function GlobalLogMapPage() {
             </div>
           )}
 
-          {pageStatus === "INITIAL_LOADING" || pageStatus === "PREPARING" || pageStatus === "LOADING_DATA_AND_MAP_NOT_READY" || pageStatus === "DATA_LOADED_MAP_INITIALIZING" ? (
+          {(pageStatus === "LOADING_ALL" || pageStatus === "PREPARING" || pageStatus === "DATA_LOADED_MAP_INITIALIZING") && (
             <div className={`flex-grow flex items-center justify-center text-blue-600 dark:text-blue-400 rounded-lg bg-gray-100 dark:bg-slate-700 shadow-inner ${mapDivHeightClass}`}>
               <p>
-                {pageStatus === "INITIAL_LOADING" || pageStatus === "LOADING_DATA_AND_MAP_NOT_READY" ? "Loading map and log data..." : 
+                {pageStatus === "LOADING_ALL" ? "Loading map and log data..." : 
                  pageStatus === "DATA_LOADED_MAP_INITIALIZING" ? "Initializing map display..." : 
                  "Preparing map area..."}
               </p>
             </div>
-          ) : null}
+          )}
           
-          {/* Map container is always in the DOM tree if no error and past initial prep, map init effect handles attachment */}
-          {pageStatus !== "ERROR" && pageStatus !== "INITIAL_LOADING" && pageStatus !== "PREPARING" && (
+          {/* Map container is rendered if not erroring or in initial loading phases */}
+          {pageStatus !== "ERROR" && pageStatus !== "LOADING_ALL" && pageStatus !== "PREPARING" && pageStatus !== "DATA_LOADED_MAP_INITIALIZING" && (
              <div 
               ref={mapContainerRef} 
-              className={`relative rounded-lg shadow-inner overflow-hidden bg-gray-200 dark:bg-slate-700 ${mapDivHeightClass} ${!isMapReady && pageStatus !== "DATA_LOADED_MAP_INITIALIZING" ? 'hidden' : 'block'}`}
+              className={`relative rounded-lg shadow-inner overflow-hidden bg-gray-200 dark:bg-slate-700 ${mapDivHeightClass} ${!isMapReady ? 'invisible' : 'visible'}`} // Use invisible to keep in layout flow
             >
               {/* Overlay for data loading if map IS ready but data still loading for markers */}
-              {isMapReady && loadingData && (
+              {pageStatus === "MAP_READY_LOADING_DATA" && (
                  <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-slate-800/50 z-10 rounded-lg">
                     <p className="text-blue-600 dark:text-blue-400 p-4 bg-white/80 dark:bg-slate-700/80 rounded-md shadow-lg">Loading log data for markers...</p>
                 </div>
