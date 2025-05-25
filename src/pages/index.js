@@ -312,8 +312,8 @@ export default function DashboardPage() {
             <span className="truncate w-28 sm:w-32 md:w-40" title={log.username || 'Anonymous'}>{log.username || 'Anonymous'}</span>
         </span>
         <div className="flex flex-col items-end sm:flex-row sm:items-center sm:gap-3">
-            <span className="font-mono text-xs sm:text-sm text-gray-700 dark:text-gray-400">{formatDuration(log.duration || 0)}</span>
-            <span className="font-semibold text-xs sm:text-sm text-green-500 dark:text-green-500">${Number(log.earnings || 0).toFixed(2)}</span>
+            <span className="font-mono text-xs sm:text-sm text-black-400 dark:text-black-400">{formatDuration(log.duration || 0)}</span>
+            <span className="font-semibold text-xs sm:text-sm text-blue-500 dark:text-blue-900">${Number(log.earnings || 0).toFixed(2)}</span>
         </div>
     </li>
   );
