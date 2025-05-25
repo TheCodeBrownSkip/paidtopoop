@@ -308,12 +308,12 @@ export default function DashboardPage() {
   const LeaderboardItem = ({ log, rank }) => (
     <li className="flex justify-between items-center text-sm p-2 border-b border-gray-200 dark:border-slate-700 last:border-b-0">
         <span className="flex items-center">
-            <span className="font-semibold w-6 text-center mr-2 text-blue-600 dark:text-blue-400">{rank}.</span>
-            <span className="truncate w-28 sm:w-32 md:w-40" title={log.username || 'Anonymous'}>{log.username || 'Anonymous'}</span>
+            <span className="font-semibold w-6 text-center mr-2 text-blue-600 dark:text-blue-500">{rank}.</span>
+            <span className="truncate w-28 sm:w-32 md:w-40 text-gray-700 dark:text-gray-400" title={log.username || 'Anonymous'}>{log.username || 'Anonymous'}</span>
         </span>
         <div className="flex flex-col items-end sm:flex-row sm:items-center sm:gap-3">
-            <span className="font-simibold text-xs sm:text-sm text-black-1000 dark:text-black-1000">{formatDuration(log.duration || 0)}</span>
-            <span className="font-semibold text-xs sm:text-sm text-blue-500 dark:text-blue-900">${Number(log.earnings || 0).toFixed(2)}</span>
+            <span className="font-mono text-xs sm:text-sm text-gray-700 dark:text-gray-600">{formatDuration(log.duration || 0)}</span>
+            <span className="font-semibold text-xs sm:text-sm text-green-500 dark:text-green-600">${Number(log.earnings || 0).toFixed(2)}</span>
         </div>
     </li>
   );
