@@ -39,6 +39,20 @@ export default function DashboardPage() {
   const [timing, setTiming] = useState(false);
   const [start, setStart] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [currentFactIndex, setCurrentFactIndex] = useState(0);
+
+  const pooFacts = [
+    "The average person spends about 92 days of their life on the toilet!",
+    "Most people poop between 3 times a day and 3 times a week - that's normal!",
+    "Humans aren't the only ones who get paid to poo - some animals get treats for their deposits!",
+    "The word 'poop' comes from the Middle English word 'poupen' or 'popen', meaning to make a gulping sound.",
+    "The average poop weighs around 1/4 pound. That's a lot of business!",
+    "Some people actually experience 'shy bowel' - difficulty pooping in public restrooms.",
+    "Ancient Romans used to poop together in public toilets and chat while doing their business!",
+    "Your body position while pooping matters - squatting is actually more natural than sitting!",
+    "The fastest poop ever recorded traveled at 6.1 meters per second. Talk about a speed demon!",
+    "Astronauts' poop floats in space - they need special toilets with suction!",
+  ];
 
   const [showRateModal, setShowRateModal] = useState(false);
   const [tempAmt, setTempAmt] = useState('');
@@ -121,11 +135,17 @@ export default function DashboardPage() {
     processIdentityData();
   }, [identity, loadingState.initial, fetchAndProcessAllLogs]); 
 
-  useEffect(() => { 
+  useEffect(() => {
     if (!timing) return;
-    const iv = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    const iv = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - start) / 1000));
+      // Change fact every 30 seconds
+      if (Math.floor((Date.now() - start) / 1000) % 30 === 0) {
+        setCurrentFactIndex(prev => (prev + 1) % pooFacts.length);
+      }
+    }, 1000);
     return () => clearInterval(iv);
-  }, [timing, start]);
+  }, [timing, start, pooFacts.length]);
 
   const handleSaveRate = () => { 
     if (!tempAmt || isNaN(Number(tempAmt))) { alert("Please enter a valid salary amount."); return; }
@@ -408,23 +428,79 @@ export default function DashboardPage() {
 
           {identity.username && (
             <section className="text-center p-6 bg-blue-50 dark:bg-slate-750 rounded-xl shadow-md">
-                <h2 className="text-xl font-semibold text-blue-700 dark:text-blue-300 mb-4">Track New Break</h2>
-                <div className="text-5xl sm:text-6xl font-mono text-blue-600 dark:text-blue-400 tabular-nums mb-3">
-                {`${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`}
+                <h2 className="text-xl font-semibold text-blue-700 dark:text-blue-300 mb-6">Track New Break</h2>
+                
+                {/* Timer Circle */}
+                <div className="relative w-48 h-48 mx-auto mb-6">
+                    {/* Progress Ring */}
+                    <svg className="absolute inset-0 w-full h-full -rotate-90">
+                        <circle
+                            className="text-blue-100 dark:text-slate-700"
+                            strokeWidth="8"
+                            stroke="currentColor"
+                            fill="transparent"
+                            r="88"
+                            cx="96"
+                            cy="96"
+                        />
+                        {timing && (
+                            <circle
+                                className="text-blue-500 dark:text-blue-400 transition-all duration-1000"
+                                strokeWidth="8"
+                                stroke="currentColor"
+                                fill="transparent"
+                                r="88"
+                                cx="96"
+                                cy="96"
+                                strokeDasharray="553"
+                                strokeDashoffset={553 - ((elapsed % 300) / 300) * 553}
+                            />
+                        )}
+                    </svg>
+                    
+                    {/* Timer Display */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="text-5xl font-mono text-blue-600 dark:text-blue-400 tabular-nums">
+                                {`${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`}
+                            </div>
+                            {rate !== null && timing && (
+                                <div className="text-lg text-gray-700 dark:text-gray-200 mt-2">
+                                    <span className="font-bold text-green-600 dark:text-green-400">${((rate * elapsed) / 3600).toFixed(2)}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
-                {rate !== null && timing && (
-                <div className="text-lg text-gray-700 dark:text-gray-200 mb-4">
-                    Earned: <span className="font-bold text-blue-700 dark:text-blue-300">${((rate * elapsed) / 3600).toFixed(2)}</span>
+
+                {/* Random Facts */}
+                <div className="text-center mb-6 h-16">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 italic">
+                        {timing ? `Did you know? ${pooFacts[currentFactIndex]}` : "Ready to make some money while you do your business?"}
+                    </p>
                 </div>
-                )}
+
+                {/* Control Buttons */}
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                {!timing ? (
-                    <button onClick={handleStartTimer} className={`${accentButtonClasses} py-3 text-lg flex-1 !w-full sm:!w-auto`}>Start</button>
-                ) : (
-                    <button onClick={handleStopTimerAndPrepareLog} className={`${errorButtonClasses} py-3 text-lg flex-1 !w-full sm:!w-auto`}>Stop & Log</button>
-                )}
+                    {!timing ? (
+                        <button
+                            onClick={handleStartTimer}
+                            className={`${accentButtonClasses} py-3 text-lg flex-1 !w-full sm:!w-auto rounded-full transition-transform hover:scale-105`}
+                        >
+                            Start Break
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleStopTimerAndPrepareLog}
+                            className={`${errorButtonClasses} py-3 text-lg flex-1 !w-full sm:!w-auto rounded-full transition-transform hover:scale-105`}
+                        >
+                            Finish Break
+                        </button>
+                    )}
                 </div>
-                {rate === null && identity.username && !showRateModal && <p className="text-xs text-red-500 mt-2">Please set your rate to calculate earnings.</p>}
+                {rate === null && identity.username && !showRateModal && (
+                    <p className="text-xs text-red-500 mt-4 text-center">Please set your rate to calculate earnings.</p>
+                )}
             </section>
           )}
           
