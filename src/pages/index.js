@@ -312,8 +312,8 @@ export default function DashboardPage() {
             <span className="truncate w-28 sm:w-32 md:w-40" title={log.username || 'Anonymous'}>{log.username || 'Anonymous'}</span>
         </span>
         <div className="flex flex-col items-end sm:flex-row sm:items-center sm:gap-3">
-            <span className="font-mono text-xs sm:text-sm text-gray-700 dark:text-gray-300">{formatDuration(log.duration || 0)}</span>
-            <span className="font-semibold text-xs sm:text-sm text-green-500 dark:text-green-400">${Number(log.earnings || 0).toFixed(2)}</span>
+            <span className="font-mono text-xs sm:text-sm text-gray-700 dark:text-gray-400">{formatDuration(log.duration || 0)}</span>
+            <span className="font-semibold text-xs sm:text-sm text-green-500 dark:text-green-500">${Number(log.earnings || 0).toFixed(2)}</span>
         </div>
     </li>
   );
@@ -465,7 +465,7 @@ export default function DashboardPage() {
           {(allLogs.length > 0 || loadingState.logs) && (
             <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="p-4 bg-gray-50 dark:bg-slate-750 rounded-lg shadow">
-                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-300 mb-3 border-b pb-2 dark:border-slate-600">
+                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400 mb-3 border-b pb-2 dark:border-slate-600">
                     Local Top 10 {lastUserLocationCity ? `(Near ${lastUserLocationCity})` : "(Log Poop w/ City)"}
                 </h3>
                 {loadingState.logs && localTopPoops.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-500">Loading...</p> :
@@ -473,10 +473,10 @@ export default function DashboardPage() {
                     <ul className="space-y-1 max-h-80 overflow-y-auto pr-1">
                     {localTopPoops.map((log, index) => <LeaderboardItem key={`local-${index}-${log.timestamp}`} log={log} rank={index + 1} />)}
                     </ul>
-                ) : ( <p className="text-xs text-gray-500 dark:text-gray-500">{lastUserLocationCity ? "No other poops here." : "Log poop with city for local stats."}</p> )}
+                ) : ( <p className="text-xs text-gray-500 dark:text-gray-600">{lastUserLocationCity ? "No other poops here." : "Log poop with city for local stats."}</p> )}
                 </div>
                 <div className="p-4 bg-gray-50 dark:bg-slate-750 rounded-lg shadow">
-                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-300 mb-3 border-b pb-2 dark:border-slate-600">
+                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400 mb-3 border-b pb-2 dark:border-slate-600">
                     Global Top 10 Poopers
                 </h3>
                 {loadingState.logs && globalTopPoops.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-500">Loading...</p> :
@@ -484,7 +484,7 @@ export default function DashboardPage() {
                     <ul className="space-y-1 max-h-80 overflow-y-auto pr-1">
                     {globalTopPoops.map((log, index) => <LeaderboardItem key={`global-${index}-${log.timestamp}`} log={log} rank={index + 1} />)}
                     </ul>
-                ) : ( <p className="text-xs text-gray-500 dark:text-gray-500">Be the first global record setter!</p> )}
+                ) : ( <p className="text-xs text-gray-500 dark:text-gray-600">Be the first global record setter!</p> )}
                 </div>
             </section>
           )}
