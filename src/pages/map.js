@@ -37,7 +37,7 @@ export default function MapPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setCanRenderMapContainer(true);
-    }, 50);
+    }, 100);
     return () => clearTimeout(timer);
   }, []);
 
