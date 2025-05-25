@@ -49,7 +49,7 @@ export default function GlobalLogMapPage() {
     const timerId = setTimeout(() => {
       console.log("GlobalMap: Setting canRenderMapContainerDOM to true");
       setCanRenderMapContainerDOM(true);
-    }, 150); // Slightly longer delay for HMR
+    }, 250); // Increased delay for better initialization
     return () => clearTimeout(timerId);
   }, []);
 
@@ -97,13 +97,18 @@ export default function GlobalLogMapPage() {
           maxZoom: 18, attribution: '© OSM',
         }).addTo(mapInstanceRef.current);
 
-        if (typeof L.markerClusterGroup === 'function') {
+        // Initialize marker cluster group after ensuring the library is loaded
+        try {
+            if (!L.markerClusterGroup) {
+                throw new Error("MarkerClusterGroup not available");
+            }
             markerClusterGroupRef.current = L.markerClusterGroup();
             mapInstanceRef.current.addLayer(markerClusterGroupRef.current);
             console.log("GlobalMap: MarkerClusterGroup initialized and added. Map is fully ready.");
             setIsMapFullyReady(true); // Signal full readiness
-        } else {
-            throw new Error("L.markerClusterGroup is not a function after import!");
+        } catch (clusterError) {
+            console.error("GlobalMap: Failed to initialize marker cluster:", clusterError);
+            throw clusterError; // Re-throw to be caught by outer try-catch
         }
       } catch (e) {
         console.error("GlobalMap: Error initializing map/MarkerCluster:", e);
@@ -186,7 +191,7 @@ export default function GlobalLogMapPage() {
               className={`
                 relative rounded-lg shadow-inner overflow-hidden bg-gray-200 dark:bg-slate-700 
                 ${mapDivHeightClass} 
-                ${isMapFullyReady && !loadingData && !error && allLogs.length > 0 ? 'block' : 'hidden'} 
+                ${isMapFullyReady && !loadingData && !error ? 'block' : 'hidden'}
               `} // Only 'block' if truly ready to show map with markers
             >
               {/* Overlay for data loading if map IS ready but data still loading for markers (this scenario is less likely with current statusMessage) */}
