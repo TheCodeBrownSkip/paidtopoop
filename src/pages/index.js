@@ -312,7 +312,7 @@ export default function DashboardPage() {
             <span className="truncate w-28 sm:w-32 md:w-40" title={log.username || 'Anonymous'}>{log.username || 'Anonymous'}</span>
         </span>
         <div className="flex flex-col items-end sm:flex-row sm:items-center sm:gap-3">
-            <span className="font-mono text-xs sm:text-sm text-black-400 dark:text-black-400">{formatDuration(log.duration || 0)}</span>
+            <span className="font-simibold text-xs sm:text-sm text-black-1000 dark:text-black-1000">{formatDuration(log.duration || 0)}</span>
             <span className="font-semibold text-xs sm:text-sm text-blue-500 dark:text-blue-900">${Number(log.earnings || 0).toFixed(2)}</span>
         </div>
     </li>
@@ -473,18 +473,18 @@ export default function DashboardPage() {
                     <ul className="space-y-1 max-h-80 overflow-y-auto pr-1">
                     {localTopPoops.map((log, index) => <LeaderboardItem key={`local-${index}-${log.timestamp}`} log={log} rank={index + 1} />)}
                     </ul>
-                ) : ( <p className="text-xs text-gray-500 dark:text-gray-600">{lastUserLocationCity ? "No other poops here." : "Log poop with city for local stats."}</p> )}
+                ) : ( <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{lastUserLocationCity ? "No other poops here." : "Log poop with city for local stats."}</p> )}
                 </div>
                 <div className="p-4 bg-gray-50 dark:bg-slate-750 rounded-lg shadow">
                 <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400 mb-3 border-b pb-2 dark:border-slate-600">
                     Global Top 10 Poopers
                 </h3>
-                {loadingState.logs && globalTopPoops.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-500">Loading...</p> :
+                {loadingState.logs && globalTopPoops.length === 0 ? <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Loading...</p> :
                 globalTopPoops.length > 0 ? (
                     <ul className="space-y-1 max-h-80 overflow-y-auto pr-1">
                     {globalTopPoops.map((log, index) => <LeaderboardItem key={`global-${index}-${log.timestamp}`} log={log} rank={index + 1} />)}
                     </ul>
-                ) : ( <p className="text-xs text-gray-500 dark:text-gray-600">Be the first global record setter!</p> )}
+                ) : ( <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Be the first global record setter!</p> )}
                 </div>
             </section>
           )}
