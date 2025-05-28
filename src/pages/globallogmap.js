@@ -4,6 +4,7 @@ import Link from 'next/link';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import ThemeToggle from '../components/ThemeToggle';
 
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -203,8 +204,16 @@ export default function GlobalLogMapPage() {
       <div className="min-h-screen bg-gradient-to-br from-blue-100 via-indigo-100 to-sky-100 dark:from-slate-900 dark:via-slate-800 dark:to-sky-900 flex flex-col items-center justify-center p-4 sm:p-6 md:p-8">
         <main className="bg-white dark:bg-slate-800 w-full max-w-6xl rounded-2xl shadow-2xl p-6 flex flex-col gap-4 h-[90vh]">
           <header className="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-slate-700">
-            <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Global Breaks Map</h1>
-            <Link href="/" className={backButtonClasses}>Back to Dashboard</Link>
+            <div>
+              <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Global Poop Map</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                View all logged locations
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <ThemeToggle />
+              <Link href="/" className={backButtonClasses}>Back to Dashboard</Link>
+            </div>
           </header>
 
           {error ? (

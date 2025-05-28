@@ -4,6 +4,7 @@ import { useRouter } from 'next/router'; // useRouter might not be needed here u
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import 'leaflet/dist/leaflet.css';
+import ThemeToggle from '../components/ThemeToggle';
 
 // Import Leaflet icon assets
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
@@ -210,16 +211,17 @@ export default function MapPage() {
       </Head>
       <div className="min-h-screen bg-gradient-to-br from-blue-100 via-indigo-100 to-sky-100 dark:from-slate-900 dark:via-slate-800 dark:to-sky-900 flex items-center justify-center p-2 sm:p-4 md:p-6 transition-colors duration-300">
         <main className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl p-3 sm:p-4 md:p-6 flex flex-col h-[95vh] sm:h-[90vh] lg:h-[85vh] overflow-hidden">
-          <header className="flex justify-between items-center mb-3 sm:mb-4">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-600 dark:text-blue-400">
-              All Breaks Map {/* Updated title */}
-            </h1>
-            <Link href="/" className={backButtonClasses}>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 sm:mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Dashboard
-            </Link>
+          <header className="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-slate-700">
+            <div>
+              <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Break Location</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Entry from {formatDate(logDetails.timestamp)}
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <ThemeToggle />
+              <Link href="/" className={backButtonClasses}>Back to Dashboard</Link>
+            </div>
           </header>
 
           {/* Display error message if any */}
