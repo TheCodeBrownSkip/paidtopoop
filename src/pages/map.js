@@ -11,7 +11,7 @@ import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 
-// Helper (if not already global or imported, define it if needed)
+// Helper functions
 const formatDuration = (seconds) => {
   const numSeconds = Number(seconds);
   if (isNaN(numSeconds) || numSeconds === null || numSeconds < 0) return 'N/A';
@@ -20,9 +20,13 @@ const formatDuration = (seconds) => {
   return `${minutes}m ${remainingSeconds}s`;
 };
 
+const formatDate = (timestamp) => {
+  if (!timestamp) return 'N/A';
+  return new Date(timestamp).toLocaleString();
+};
 
 export default function MapPage() {
-  // const router = useRouter(); // Only if you need query params for this page
+  const router = useRouter();
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersLayerRef = useRef(null); // Using a layer group for markers is good practice
@@ -33,6 +37,25 @@ export default function MapPage() {
   
   // State to control map container rendering for HMR stability
   const [canRenderMapDiv, setCanRenderMapDiv] = useState(false);
+  const [logDetails, setLogDetails] = useState(null);
+
+  // Extract log details from query parameters
+  useEffect(() => {
+    if (!router.isReady) return;
+
+    const { lat, lng, city, user, dur, earn, ts } = router.query;
+    if (ts) {
+      setLogDetails({
+        lat: lat ? parseFloat(lat) : null,
+        lng: lng ? parseFloat(lng) : null,
+        city: city || null,
+        username: user || 'Anonymous',
+        duration: dur ? parseInt(dur) : null,
+        earnings: earn ? parseFloat(earn) : null,
+        timestamp: parseInt(ts)
+      });
+    }
+  }, [router.isReady, router.query]);
 
   // Fetch logs
   useEffect(() => {
@@ -128,73 +151,52 @@ export default function MapPage() {
 
   // Update markers
   useEffect(() => {
-    if (!mapInstanceRef.current || !markersLayerRef.current || loadingData || error) {
+    if (!mapInstanceRef.current || !markersLayerRef.current || loadingData || error || !logDetails) {
       // Don't try to update markers if map isn't ready, data is loading, or there's an error
       return;
     }
 
-    console.log("MapPage: Updating markers. Logs count:", logs.length);
+    console.log("MapPage: Updating markers for specific log");
     let L_markers;
     (async () => {
       try {
         L_markers = await import('leaflet'); // Leaflet should be cached by browser
         markersLayerRef.current.clearLayers();
 
-        if (logs.length > 0) {
-          logs.forEach(log => {
-            if (log.lat !== null && log.lng !== null && typeof log.lat === 'number' && typeof log.lng === 'number') {
-              const color = log.locationMethod === 'auto' ? '#2563EB' : '#0EA5E9'; // blue-600 : sky-500
-              const circle = L_markers.circleMarker([log.lat, log.lng], {
-                radius: 7,
-                fillColor: color,
-                color: '#FFF',
-                weight: 1.5,
-                opacity: 1,
-                fillOpacity: 0.8,
-              });
-              circle.bindPopup(
-                `<div class="p-1 text-sm dark:text-gray-300">
-                  <strong class="text-blue-600 dark:text-blue-400">${log.username||'Anonymous'}</strong><br/>
-                  Duration: ${formatDuration(log.duration)}<br/>
-                  Earned: $${Number(log.earnings || 0).toFixed(2)}<br/>
-                  ${log.city?`City: ${log.city}<br/>`:''}
-                  <small class="text-gray-500 dark:text-gray-400">Logged: ${new Date(log.timestamp).toLocaleDateString()}</small>
-                </div>`
-              );
-              markersLayerRef.current.addLayer(circle);
-            }
+        if (logDetails.lat !== null && logDetails.lng !== null) {
+          const color = '#2563EB'; // blue-600
+          const circle = L_markers.circleMarker([logDetails.lat, logDetails.lng], {
+            radius: 7,
+            fillColor: color,
+            color: '#FFF',
+            weight: 1.5,
+            opacity: 1,
+            fillOpacity: 0.8,
           });
-          console.log(`MapPage: Added/updated ${markersLayerRef.current.getLayers().length} markers.`);
-        } else {
-            console.log("MapPage: No logs with coordinates to display.");
+          circle.bindPopup(
+            `<div class="p-1 text-sm dark:text-gray-300">
+              <strong class="text-blue-600 dark:text-blue-400">${logDetails.username}</strong><br/>
+              Duration: ${formatDuration(logDetails.duration)}<br/>
+              Earned: $${Number(logDetails.earnings || 0).toFixed(2)}<br/>
+              ${logDetails.city ? `City: ${logDetails.city}<br/>` : ''}
+              <small class="text-gray-500 dark:text-gray-400">Logged: ${formatDate(logDetails.timestamp)}</small>
+            </div>`
+          );
+          markersLayerRef.current.addLayer(circle);
+
+          // Center and zoom the map on the marker
+          mapInstanceRef.current.setView([logDetails.lat, logDetails.lng], 13);
+        } else if (logDetails.city) {
+          // If we only have city info, we could potentially geocode it here
+          // For now, just keep the default view
+          console.log("MapPage: No precise coordinates available for this log");
         }
       } catch (err) {
         console.error('MapPage: Error updating markers:', err);
         setError(err.message || "Error displaying markers.");
       }
     })();
-  }, [logs, loadingData, error]); // Re-run if logs, loadingData, or error state change.
-
-  // Effect to zoom to the latest log (optional, can be kept or removed for a general map)
-  useEffect(() => {
-    if (mapInstanceRef.current && !loadingData && logs && logs.length > 0 && !error) {
-      const sortedLogsWithCoords = [...logs]
-        .filter(log => typeof log.lat === 'number' && typeof log.lng === 'number')
-        .sort((a, b) => b.timestamp - a.timestamp);
-
-      if (sortedLogsWithCoords.length > 0) {
-        const latestLog = sortedLogsWithCoords[0];
-        const zoomLevel = 13; 
-        console.log(`MapPage: Flying to latest log: ${latestLog.username || 'N/A'} at [${latestLog.lat}, ${latestLog.lng}]`);
-        mapInstanceRef.current.flyTo([latestLog.lat, latestLog.lng], zoomLevel);
-      } else {
-        // If logs exist but none have coords, or if no logs, map stays at default view or last position
-        console.log("MapPage: No specific log with coords to fly to, maintaining current view.");
-         // mapInstanceRef.current.setView([20,0], 2); // Optionally reset to world view
-      }
-    }
-  }, [logs, loadingData, error]);
-
+  }, [logDetails, loadingData, error]);
 
   const backButtonClasses = "inline-flex items-center text-sm text-blue-700 bg-blue-100 hover:bg-blue-200 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg px-4 py-2 text-center border border-blue-300 dark:bg-slate-700 dark:text-blue-300 dark:hover:bg-slate-600 dark:border-slate-500 dark:focus:ring-blue-800 transition-colors duration-150";
   const mapContainerDynamicHeightClass = "flex-grow min-h-[250px] sm:min-h-[350px]";
@@ -215,7 +217,7 @@ export default function MapPage() {
             <div>
               <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Break Location</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Entry from {formatDate(logDetails.timestamp)}
+                Entry from {logDetails?.timestamp ? formatDate(logDetails.timestamp) : 'N/A'}
               </p>
             </div>
             <div className="flex items-center gap-4">
