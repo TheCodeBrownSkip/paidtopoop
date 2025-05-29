@@ -1,45 +1,58 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 
-const ThemeContext = createContext();
+const ThemeContext = createContext({
+  darkMode: false,
+  toggleDarkMode: () => {},
+  mounted: false,
+});
 
 export function ThemeProvider({ children }) {
   const [darkMode, setDarkMode] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  // Effect to set initial theme and mark as mounted
   useEffect(() => {
-    // Check if user has a theme preference in localStorage
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      setDarkMode(savedTheme === 'dark');
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
-    } else {
-      // Check system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setDarkMode(prefersDark);
-      document.documentElement.classList.toggle('dark', prefersDark);
+    let initialDarkMode = false;
+    try {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) {
+        initialDarkMode = savedTheme === 'dark';
+      } else {
+        initialDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      }
+    } catch (e) {
+      // In case localStorage or matchMedia is not available (e.g., server-side rendering)
+      console.warn("Could not determine initial theme preference.");
     }
+    setDarkMode(initialDarkMode);
+    // Directly apply class here too, though _document.js script should handle FOUC
+    document.documentElement.classList.toggle('dark', initialDarkMode);
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (mounted) {
-      // Update document class and localStorage when theme changes
-      document.documentElement.classList.toggle('dark', darkMode);
-      localStorage.setItem('theme', darkMode ? 'dark' : 'light');
-    }
-  }, [darkMode, mounted]);
-
   const toggleDarkMode = () => {
-    setDarkMode(prev => !prev);
+    setDarkMode(prevDarkMode => {
+      const newDarkMode = !prevDarkMode;
+      try {
+        localStorage.setItem('theme', newDarkMode ? 'dark' : 'light');
+        document.documentElement.classList.toggle('dark', newDarkMode);
+      } catch (e) {
+         console.warn("Could not persist theme change.");
+      }
+      return newDarkMode;
+    });
   };
 
-  // Prevent flash of wrong theme while loading
+  // Return null if not mounted to prevent hydration issues on the client
+  // This is important for the ThemeToggle button to get the correct initial darkMode state
   if (!mounted) {
-    return null;
+    // During SSR or before hydration, we can provide a non-functional context
+    // or simply return null. Returning null for children ensures they wait for client mount.
+    return null; 
   }
 
   return (
-    <ThemeContext.Provider value={{ darkMode, toggleDarkMode }}>
+    <ThemeContext.Provider value={{ darkMode, toggleDarkMode, mounted }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -47,8 +60,7 @@ export function ThemeProvider({ children }) {
 
 export function useTheme() {
   const context = useContext(ThemeContext);
-  if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
+  // No undefined check needed here if ThemeContext.Provider always renders (even if children are null)
+  // or if we ensure consumers check the `mounted` flag from the context if they need to act immediately.
   return context;
 } 
