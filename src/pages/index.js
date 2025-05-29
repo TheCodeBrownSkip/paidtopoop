@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { getIdentity, clearIdentity, storeIdentity, generateAndStoreIdentity } from '@/utils/identity';
 import { useRouter } from 'next/router';
-import ThemeToggle from '../components/ThemeToggle';
 
 const formatDuration = (seconds) => {
   const numSeconds = Number(seconds);
@@ -371,15 +370,15 @@ export default function DashboardPage() {
                         </h1>
                     )}
                 </div>
-                <div className="flex items-center gap-4">
-                    <ThemeToggle />
+                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
                     {identity.username && (
-                        <button
-                            onClick={() => setShowLogoutModal(true)}
-                            className={`${errorButtonClasses} !py-2 !px-4`}
-                        >
-                            Logout
-                        </button>
+                        <button onClick={handleLogout} className={`${secondaryButtonClasses} !w-full sm:!w-auto whitespace-nowrap`}>Log Out</button>
+                    )}
+                    {!identity.username && (
+                         <button onClick={() => { setShowRecoveryModal(true); setRecoveryError(''); }} className={`${primaryButtonClasses} !w-full sm:!w-auto whitespace-nowrap`}>Use Recovery Code</button>
+                    )}
+                    {identity.username && (
+                        <Link href="/globallogmap" className={`${secondaryButtonClasses} !w-full sm:!w-auto text-center whitespace-nowrap`}>View Global Map</Link>
                     )}
                 </div>
             </div>
