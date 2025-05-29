@@ -1,14 +1,18 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
+import nextPlugin from 'eslint-config-next';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
-const eslintConfig = [...compat.extends("next/core-web-vitals")];
+/** @type {import('eslint').Linter.FlatConfig[]} */
+const eslintConfig = [
+  // Include Next.js default configuration
+  // The `nextPlugin` might be an object or an array of configs
+  ...(Array.isArray(nextPlugin) ? nextPlugin : [nextPlugin]),
+  // You can add more custom rules or overrides here if needed
+  // For example:
+  // {
+  //   files: ["src/**/*.js"],
+  //   rules: {
+  //     "no-unused-vars": "warn"
+  //   }
+  // }
+];
 
 export default eslintConfig;
