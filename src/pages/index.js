@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { getIdentity, clearIdentity, storeIdentity, generateAndStoreIdentity } from '@/utils/identity';
 import { useRouter } from 'next/router';
+import ThemeToggle from '../components/ThemeToggle';
 
 const formatDuration = (seconds) => {
   const numSeconds = Number(seconds);

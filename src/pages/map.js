@@ -160,11 +160,11 @@ export default function MapPage() {
     let L_markers;
     (async () => {
       try {
-        L_markers = await import('leaflet'); // Leaflet should be cached by browser
+        L_markers = await import('leaflet');
         markersLayerRef.current.clearLayers();
 
         if (logDetails.lat !== null && logDetails.lng !== null) {
-          const color = '#2563EB'; // blue-600
+          const color = '#2563EB'; // blue-600 for marker
           const circle = L_markers.circleMarker([logDetails.lat, logDetails.lng], {
             radius: 7,
             fillColor: color,
@@ -174,21 +174,18 @@ export default function MapPage() {
             fillOpacity: 0.8,
           });
           circle.bindPopup(
-            `<div class="p-1 text-sm dark:text-gray-300">
-              <strong class="text-blue-600 dark:text-blue-400">${logDetails.username}</strong><br/>
+            // Use CSS variables for text colors within the popup
+            `<div style="color: var(--card-foreground); padding: 0.25rem; font-size: 0.875rem;">
+              <strong style="color: var(--foreground);">${logDetails.username}</strong><br/>
               Duration: ${formatDuration(logDetails.duration)}<br/>
               Earned: $${Number(logDetails.earnings || 0).toFixed(2)}<br/>
               ${logDetails.city ? `City: ${logDetails.city}<br/>` : ''}
-              <small class="text-gray-500 dark:text-gray-400">Logged: ${formatDate(logDetails.timestamp)}</small>
+              <small style="color: var(--foreground); opacity: 0.7;">Logged: ${formatDate(logDetails.timestamp)}</small>
             </div>`
           );
           markersLayerRef.current.addLayer(circle);
-
-          // Center and zoom the map on the marker
           mapInstanceRef.current.setView([logDetails.lat, logDetails.lng], 13);
         } else if (logDetails.city) {
-          // If we only have city info, we could potentially geocode it here
-          // For now, just keep the default view
           console.log("MapPage: No precise coordinates available for this log");
         }
       } catch (err) {

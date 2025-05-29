@@ -173,11 +173,13 @@ export default function GlobalLogMapPage() {
           if (log.lat !== null && log.lng !== null && typeof log.lat === 'number' && typeof log.lng === 'number') {
             const marker = leafletRef.current.marker([log.lat, log.lng]);
             marker.bindPopup(`
-              <b>${log.username || 'Anonymous'}</b><br/>
-              Duration: ${formatDuration(log.duration)}<br/>
-              Earned: $${Number(log.earnings).toFixed(2)}<br/>
-              ${log.city ? `City: ${log.city}<br/>` : ''}
-              <small>Logged: ${new Date(log.timestamp).toLocaleString()}</small>
+              <div style="color: var(--card-foreground);">
+                <strong style="color: var(--foreground);">${log.username || 'Anonymous'}</strong><br/>
+                Duration: ${formatDuration(log.duration)}<br/>
+                Earned: $${Number(log.earnings).toFixed(2)}<br/>
+                ${log.city ? `City: ${log.city}<br/>` : ''}
+                <small style="color: var(--foreground); opacity: 0.7;">Logged: ${new Date(log.timestamp).toLocaleString()}</small>
+              </div>
             `);
             markerClusterGroupRef.current.addLayer(marker);
             addedCount++;
